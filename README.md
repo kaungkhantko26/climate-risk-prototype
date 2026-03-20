@@ -1,9 +1,9 @@
 # Climate Risk Prediction System Prototype
 
 This is a hackathon-ready prototype with:
-- **FastAPI backend** for climate risk prediction
+- **FastAPI backend** for live climate risk detection
 - **React + Vite frontend** for the farmer dashboard
-- **Simple rule-based logic** for flood, drought, and storm alerts
+- **Open-Meteo geocoding + forecast integration** for real-world weather inputs
 - **SMS-ready alert output** for low-connectivity scenarios
 
 ## Folder structure
@@ -15,11 +15,13 @@ This is a hackathon-ready prototype with:
 
 ## How it works
 
-The frontend sends weather inputs to the backend `/predict` endpoint.
-The backend applies simple logic:
-- high rainfall + high soil moisture -> flood risk
-- very low rainfall + high temperature -> drought risk
-- high wind or heavy rain -> storm warning
+The frontend sends a real location name and crop to the backend `/predict` endpoint.
+
+The backend:
+- geocodes the location with Open-Meteo
+- pulls live forecast data for the next 3 days
+- aggregates rainfall, temperature, wind, and surface soil moisture
+- applies rule-based climate risk logic for flood, drought, and storm exposure
 
 Then it returns:
 - risk level
@@ -27,6 +29,7 @@ Then it returns:
 - timing window
 - farmer advice
 - SMS message
+- live weather snapshot used for the decision
 
 ## Run locally
 
@@ -53,6 +56,7 @@ npm run dev
 Then open the local Vite URL in your browser.
 
 The frontend will call `http://127.0.0.1:8000` automatically in local development.
+The backend needs outbound internet access because it fetches live weather and geocoding data from Open-Meteo.
 
 ## GitHub Pages deploy
 
@@ -74,6 +78,11 @@ This repo is prepared for a free Vercel Hobby deployment of the FastAPI backend:
 - `backend/app.py` exports the FastAPI app using a Vercel-supported entrypoint name
 - `backend/main.py` includes `ALLOWED_ORIGINS` support for the local frontend and `https://climate-risk-prototype.kaungkhantko.top`
 - `backend/main.py` includes `/health` for deployment checks
+- `backend/main.py` fetches live weather using Open-Meteo geocoding and forecast APIs
+
+Open-Meteo docs used by this implementation:
+- https://open-meteo.com/en/docs
+- https://open-meteo.com/en/docs/geocoding-api
 
 Vercel's current docs say FastAPI can be deployed on Vercel and that supported FastAPI entrypoints include `app.py`, `index.py`, and `server.py`:
 - https://vercel.com/docs/frameworks/backend/fastapi
