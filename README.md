@@ -70,20 +70,27 @@ GitHub Pages cannot run Python or FastAPI. GitHub's current Pages docs describe 
 - https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages
 - https://docs.github.com/enterprise-cloud@latest/pages/getting-started-with-github-pages/creating-a-github-pages-site
 
-This repo now includes:
-- `backend/Dockerfile` for container-based deployment
-- `render.yaml` for deploying the FastAPI backend directly from this GitHub repo on Render
-- `ALLOWED_ORIGINS` support in `backend/main.py` for the local frontend and `https://climate-risk-prototype.kaungkhantko.top`
+This repo is prepared for a free Vercel Hobby deployment of the FastAPI backend:
+- `backend/app.py` exports the FastAPI app using a Vercel-supported entrypoint name
+- `backend/main.py` includes `ALLOWED_ORIGINS` support for the local frontend and `https://climate-risk-prototype.kaungkhantko.top`
+- `backend/main.py` includes `/health` for deployment checks
+
+Vercel's current docs say FastAPI can be deployed on Vercel and that supported FastAPI entrypoints include `app.py`, `index.py`, and `server.py`:
+- https://vercel.com/docs/frameworks/backend/fastapi
+
+Vercel's current pricing/docs say the Hobby plan is free:
+- https://vercel.com/pricing
+- https://vercel.com/docs/plans/hobby
 
 To use the live backend with the GitHub Pages frontend:
 
-1. Deploy the `backend/` service from this GitHub repo using Render or another Python host.
-2. Copy the deployed API URL, for example `https://your-api.onrender.com`.
-3. In GitHub, open this repo's `Settings > Secrets and variables > Actions > Variables`.
-4. Add `VITE_API_BASE_URL` with your deployed backend URL.
-5. Re-run the Pages workflow or push a new commit so the frontend rebuild picks up the API URL.
-
-The backend includes a health endpoint at `/health` for deployment checks.
+1. In Vercel, import `kaungkhantko26/climate-risk-prototype` from GitHub.
+2. Set the Vercel project's `Root Directory` to `backend`.
+3. Deploy with the default FastAPI detection. The exported app entrypoint is `backend/app.py`.
+4. Copy the deployed API URL, for example `https://climate-risk-prototype-api.vercel.app`.
+5. In GitHub, open this repo's `Settings > Secrets and variables > Actions > Variables`.
+6. Add `VITE_API_BASE_URL` with your deployed backend URL.
+7. Re-run the Pages workflow or push a new commit so the frontend rebuild picks up the API URL.
 
 ## Demo script
 
