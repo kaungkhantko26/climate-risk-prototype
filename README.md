@@ -15,10 +15,10 @@ This is a hackathon-ready prototype with:
 
 ## How it works
 
-The frontend sends a real location name and crop to the backend `/predict` endpoint.
+The frontend sends a Myanmar location name and crop to the backend `/predict` endpoint.
 
 The backend:
-- geocodes the location with Open-Meteo
+- geocodes the location with Open-Meteo using a Myanmar-only country filter
 - pulls live forecast data for the next 3 days
 - aggregates rainfall, temperature, wind, and surface soil moisture
 - applies rule-based climate risk logic for flood, drought, and storm exposure
@@ -56,7 +56,7 @@ npm run dev
 Then open the local Vite URL in your browser.
 
 The frontend will call `http://127.0.0.1:8000` automatically in local development.
-The backend needs outbound internet access because it fetches live weather and geocoding data from Open-Meteo.
+The backend needs outbound internet access because it fetches live Myanmar weather and geocoding data from Open-Meteo.
 
 ## GitHub Pages deploy
 
@@ -64,7 +64,7 @@ This repo includes a GitHub Actions workflow at `.github/workflows/deploy.yml` t
 
 The production deploy is configured for the custom domain `climate-risk-prototype.kaungkhantko.top`.
 
-If you only deploy the frontend, the site falls back to built-in demo alerts and prediction logic so the Pages version still works without a live backend.
+If you only deploy the frontend without a working backend URL, live weather detection will not work.
 
 If you deploy the FastAPI backend somewhere else, add a GitHub repository variable named `VITE_API_BASE_URL` with your backend URL and the Pages build will use it.
 
@@ -78,7 +78,7 @@ This repo is prepared for a free Vercel Hobby deployment of the FastAPI backend:
 - `backend/app.py` exports the FastAPI app using a Vercel-supported entrypoint name
 - `backend/main.py` includes `ALLOWED_ORIGINS` support for the local frontend and `https://climate-risk-prototype.kaungkhantko.top`
 - `backend/main.py` includes `/health` for deployment checks
-- `backend/main.py` fetches live weather using Open-Meteo geocoding and forecast APIs
+- `backend/main.py` fetches live Myanmar weather using Open-Meteo geocoding and forecast APIs
 
 Open-Meteo docs used by this implementation:
 - https://open-meteo.com/en/docs
@@ -104,8 +104,8 @@ To use the live backend with the GitHub Pages frontend:
 ## Demo script
 
 1. Open the dashboard and show the sample alerts.
-2. Explain that the alerts come from live geocoding and forecast data.
-3. Enter a new real location and choose a crop.
+2. Explain that the alerts come from live Myanmar geocoding and forecast data.
+3. Enter a new Myanmar location and choose a crop.
 4. Click **Detect Risk**.
 5. Show the returned weather snapshot and SMS preview.
 6. Conclude with how this supports smallholder farmers with low-connectivity delivery.

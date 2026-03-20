@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { buildDemoAlert, sampleAlerts } from './riskModel'
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -7,7 +6,7 @@ const API_BASE = (
 ).replace(/\/$/, '')
 
 const cropOptions = ['Rice', 'Sesame', 'Pulses', 'Maize', 'Groundnut', 'Vegetables']
-const quickLocations = ['Hlegu', 'Magway', 'Bago', 'Yangon', 'Mandalay']
+const quickLocations = ['Hlegu', 'Magway', 'Bago', 'Yangon', 'Mandalay', 'Nay Pyi Taw']
 
 const badgeClass = (risk) => {
   if (risk.includes('Flood')) return 'bg-red-100 text-red-700 border-red-200'
@@ -27,8 +26,17 @@ const formatValue = (value, unit, digits = 0) => {
 }
 
 const formatCoordinates = (weather) => {
-  if (weather?.latitude === null || weather?.latitude === undefined) return 'Demo profile'
+  if (weather?.latitude === null || weather?.latitude === undefined) return 'Unavailable'
   return `${weather.latitude.toFixed(2)}, ${weather.longitude.toFixed(2)}`
+}
+
+const readErrorMessage = async (response, fallbackMessage) => {
+  try {
+    const payload = await response.json()
+    return payload?.detail || fallbackMessage
+  } catch {
+    return fallbackMessage
+  }
 }
 
 export default function App() {
@@ -36,25 +44,24 @@ export default function App() {
   const [selectedAlert, setSelectedAlert] = useState(null)
   const [form, setForm] = useState(defaultForm)
   const [generatedAlert, setGeneratedAlert] = useState(null)
-  const [status, setStatus] = useState('Loading live weather watchlist...')
+  const [status, setStatus] = useState('Loading live Myanmar watchlist...')
 
   useEffect(() => {
     let cancelled = false
 
     const loadAlerts = async () => {
       if (!API_BASE) {
-        const localAlerts = sampleAlerts()
         if (cancelled) return
-        setAlerts(localAlerts)
-        setSelectedAlert(localAlerts[0] || null)
-        setStatus('Running in demo mode without a backend URL.')
+        setAlerts([])
+        setSelectedAlert(null)
+        setStatus('Live backend URL is not configured. Set VITE_API_BASE_URL to enable Myanmar weather detection.')
         return
       }
 
       try {
         const response = await fetch(`${API_BASE}/sample-alerts`)
         if (!response.ok) {
-          throw new Error('Sample alerts request failed')
+          throw new Error(await readErrorMessage(response, 'Could not load live Myanmar watchlist.'))
         }
 
         const data = await response.json()
@@ -62,13 +69,12 @@ export default function App() {
         if (cancelled) return
         setAlerts(nextAlerts)
         setSelectedAlert(nextAlerts[0] || null)
-        setStatus('Live forecast API connected.')
-      } catch {
-        const localAlerts = sampleAlerts()
+        setStatus('Live Myanmar weather detection is connected.')
+      } catch (error) {
         if (cancelled) return
-        setAlerts(localAlerts)
-        setSelectedAlert(localAlerts[0] || null)
-        setStatus('Live backend unavailable. Showing demo weather profiles.')
+        setAlerts([])
+        setSelectedAlert(null)
+        setStatus(error.message || 'Could not load live Myanmar watchlist.')
       }
     }
 
@@ -93,17 +99,17 @@ export default function App() {
     }
 
     if (!payload.location) {
-      setStatus('Enter a location to detect live climate risk.')
+      setStatus('Enter a Myanmar location to detect live climate risk.')
       return
     }
-
-    setStatus(`Checking live forecast for ${payload.location}...`)
 
     if (!API_BASE) {
-      setGeneratedAlert(buildDemoAlert(payload))
-      setStatus('Prediction ready from demo weather profile.')
+      setGeneratedAlert(null)
+      setStatus('Live backend URL is not configured. Set VITE_API_BASE_URL first.')
       return
     }
+
+    setStatus(`Checking live Myanmar forecast for ${payload.location}...`)
 
     try {
       const response = await fetch(`${API_BASE}/predict`, {
@@ -113,15 +119,15 @@ export default function App() {
       })
 
       if (!response.ok) {
-        throw new Error('Prediction request failed')
+        throw new Error(await readErrorMessage(response, 'Live weather lookup failed.'))
       }
 
       const data = await response.json()
       setGeneratedAlert(data)
-      setStatus(`Live forecast loaded for ${data.location}.`)
-    } catch {
-      setGeneratedAlert(buildDemoAlert(payload))
-      setStatus('Live weather lookup failed. Showing a demo weather profile instead.')
+      setStatus(`Live Myanmar forecast loaded for ${data.location}.`)
+    } catch (error) {
+      setGeneratedAlert(null)
+      setStatus(error.message || 'Live weather lookup failed.')
     }
   }
 
@@ -160,10 +166,10 @@ export default function App() {
         <header className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
-              <p className="text-sm font-semibold tracking-wide uppercase text-emerald-700">Live Forecast Monitor</p>
+              <p className="text-sm font-semibold tracking-wide uppercase text-emerald-700">Myanmar Live Weather Monitor</p>
               <h1 className="text-4xl md:text-5xl font-bold mt-2">Real-World Climate Risk Detection</h1>
               <p className="mt-4 text-slate-600 max-w-3xl">
-                Enter a real location and crop, then the backend geocodes the place, pulls a live three-day forecast, and turns it into flood, drought, or storm guidance.
+                Enter a Myanmar city, township, district, or regional capital. The backend resolves the location inside Myanmar only, fetches live three-day forecast data, and turns it into climate risk guidance.
               </p>
             </div>
             <div className="bg-slate-100 rounded-2xl px-4 py-3 text-sm border border-slate-200 max-w-sm">
@@ -177,49 +183,55 @@ export default function App() {
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
               <div className="flex items-center justify-between mb-5 gap-4">
                 <div>
-                  <h2 className="text-2xl font-semibold">Live Risk Watchlist</h2>
-                  <p className="text-slate-600 mt-1">Monitored locations refresh from the backend when available and fall back to demo weather profiles only if the API is unreachable.</p>
+                  <h2 className="text-2xl font-semibold">Live Myanmar Watchlist</h2>
+                  <p className="text-slate-600 mt-1">These alerts come from live forecast data only. If the backend or weather provider is unavailable, this section stays empty instead of using demo data.</p>
                 </div>
               </div>
-              <div className="space-y-4">
-                {alerts.map((alert, index) => (
-                  <button
-                    key={`${alert.location}-${index}`}
-                    type="button"
-                    onClick={() => {
-                      setSelectedAlert(alert)
-                      setGeneratedAlert(null)
-                    }}
-                    className="w-full text-left rounded-2xl border border-slate-200 p-5 bg-slate-50 hover:bg-slate-100 transition"
-                  >
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                      <div>
-                        <div className="text-lg font-semibold">{alert.location} • {alert.crop}</div>
-                        <div className="text-sm text-slate-500 mt-1">
-                          Rain {formatValue(alert.weather?.rainfall_mm_next_3_days, ' mm', 1)} • Wind {formatValue(alert.weather?.max_wind_kph_next_3_days, ' kph', 1)}
+              {alerts.length > 0 ? (
+                <div className="space-y-4">
+                  {alerts.map((alert, index) => (
+                    <button
+                      key={`${alert.location}-${index}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedAlert(alert)
+                        setGeneratedAlert(null)
+                      }}
+                      className="w-full text-left rounded-2xl border border-slate-200 p-5 bg-slate-50 hover:bg-slate-100 transition"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div>
+                          <div className="text-lg font-semibold">{alert.location} • {alert.crop}</div>
+                          <div className="text-sm text-slate-500 mt-1">
+                            Rain {formatValue(alert.weather?.rainfall_mm_next_3_days, ' mm', 1)} • Wind {formatValue(alert.weather?.max_wind_kph_next_3_days, ' kph', 1)}
+                          </div>
                         </div>
+                        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium ${badgeClass(alert.risk)}`}>
+                          {alert.risk}
+                        </span>
                       </div>
-                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium ${badgeClass(alert.risk)}`}>
-                        {alert.risk}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-slate-700">{alert.advice}</p>
-                  </button>
-                ))}
-              </div>
+                      <p className="mt-3 text-slate-700">{alert.advice}</p>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-slate-600">
+                  No live watchlist data yet. Check the backend deployment or try again in a moment.
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
               <h2 className="text-2xl font-semibold">Detect Live Climate Risk</h2>
-              <p className="text-slate-600 mt-1">Type a city, township, or district and the backend will fetch live weather data for the next three days.</p>
+              <p className="text-slate-600 mt-1">Search real Myanmar places only. Example inputs: Hlegu, Magway, Bago, Yangon, Mandalay, Nay Pyi Taw.</p>
               <form className="mt-5 grid md:grid-cols-2 gap-4" onSubmit={runPrediction}>
                 <label className="block md:col-span-2">
-                  <span className="text-sm font-medium text-slate-700">Location</span>
+                  <span className="text-sm font-medium text-slate-700">Myanmar Location</span>
                   <input
                     type="text"
                     value={form.location}
                     onChange={(event) => updateField('location', event.target.value)}
-                    placeholder="e.g. Hlegu, Magway, Bago, Yangon"
+                    placeholder="e.g. Hlegu, Yangon, Nay Pyi Taw"
                     className="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </label>
@@ -255,7 +267,7 @@ export default function App() {
 
                 <div className="md:col-span-2 flex items-center justify-between gap-4">
                   <p className="text-sm text-slate-500">
-                    Live mode uses backend geocoding and forecast data. If the backend is down, the interface falls back to a demo weather profile.
+                    This workflow is live-only. If the backend cannot geocode the Myanmar location or reach weather services, the UI will show the real error instead of replacing it with demo data.
                   </p>
                   <button className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 font-semibold shadow-sm shrink-0">
                     Detect Risk
@@ -298,7 +310,7 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <p className="mt-4 text-slate-600">No alert selected yet.</p>
+                <p className="mt-4 text-slate-600">Select a live watchlist alert or run a Myanmar location search.</p>
               )}
             </div>
 
@@ -316,11 +328,11 @@ export default function App() {
                   </div>
                   <div className="mt-4 rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm text-slate-600">
                     <div>Timezone: {currentAlert.weather.timezone || 'Unavailable'}</div>
-                    <div className="mt-1">Forecast timestamp: {currentAlert.weather.forecast_time || 'Demo profile'}</div>
+                    <div className="mt-1">Forecast timestamp: {currentAlert.weather.forecast_time || 'Unavailable'}</div>
                   </div>
                 </>
               ) : (
-                <p className="mt-4 text-slate-600">Weather metrics will appear after an alert is selected.</p>
+                <p className="mt-4 text-slate-600">Live weather metrics will appear after a successful lookup.</p>
               )}
             </div>
 
@@ -328,17 +340,17 @@ export default function App() {
               <h2 className="text-2xl font-semibold">SMS Preview</h2>
               <div className="mt-4 rounded-3xl bg-slate-900 text-white p-5 shadow-inner min-h-40">
                 <div className="text-xs uppercase tracking-wide text-slate-400">Farmer Alert</div>
-                <p className="mt-3 text-sm leading-6">{currentAlert ? currentAlert.sms : 'Generate or select an alert to see the SMS version.'}</p>
+                <p className="mt-3 text-sm leading-6">{currentAlert ? currentAlert.sms : 'Run a live Myanmar risk check to generate the SMS message.'}</p>
               </div>
             </div>
 
             <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-3xl shadow-sm p-6 text-white">
               <h2 className="text-2xl font-semibold">How It Works</h2>
               <ol className="mt-4 space-y-2 text-emerald-50 list-decimal list-inside">
-                <li>Enter a real place name and crop</li>
-                <li>Backend geocodes the location and fetches a live three-day forecast</li>
-                <li>Risk logic scores flood, drought, storm, or moderate exposure</li>
-                <li>Farm advice and SMS text are generated from the live weather snapshot</li>
+                <li>Enter a Myanmar location and crop</li>
+                <li>Backend geocodes the place inside Myanmar only</li>
+                <li>Live forecast data is fetched and translated into flood, drought, or storm risk</li>
+                <li>Farmer advice and SMS text are generated from the real weather snapshot</li>
               </ol>
             </div>
           </div>

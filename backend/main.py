@@ -12,6 +12,26 @@ app = FastAPI(title='Climate Risk Prediction API', version='0.1.0')
 
 GEOCODING_API_URL = 'https://geocoding-api.open-meteo.com/v1/search'
 FORECAST_API_URL = 'https://api.open-meteo.com/v1/forecast'
+MYANMAR_LOCATION_ALIASES = {
+    'naypyidaw': 'Nay Pyi Taw',
+    'nay pyi taw': 'Nay Pyi Taw',
+    'pyinoolwin': 'Pyin Oo Lwin',
+    'pyin oo lwin': 'Pyin Oo Lwin',
+    'sittwe': 'Sittwe',
+    'pathein': 'Pathein',
+    'taunggyi': 'Taunggyi',
+    'mawlamyine': 'Mawlamyine',
+    'yangon': 'Yangon',
+    'mandalay': 'Mandalay',
+    'bago': 'Bago',
+    'magway': 'Magway',
+    'hlegu': 'Hlegu',
+    'ရန်ကုန်': 'Yangon',
+    'မန္တလေး': 'Mandalay',
+    'ပဲခူး': 'Bago',
+    'မကွေး': 'Magway',
+    'နေပြည်တော်': 'Nay Pyi Taw',
+}
 
 
 @lru_cache
@@ -93,6 +113,24 @@ def _build_sms(location: str, crop: str, risk: str, advice: str, weather: Weathe
     )
 
 
+def _normalize_myanmar_query(query: str) -> str:
+    normalized = ' '.join(query.replace(',', ' ').split())
+    if not normalized:
+        return normalized
+
+    alias = MYANMAR_LOCATION_ALIASES.get(normalized.lower())
+    if alias:
+        return alias
+
+    lowered = normalized.lower()
+    for suffix in (' township', ' district', ' region', ' state', ' city'):
+        if lowered.endswith(suffix):
+            normalized = normalized[: -len(suffix)].strip()
+            break
+
+    return normalized
+
+
 def build_alert(location: str, crop: str, weather: WeatherSnapshot, source: str) -> Alert:
     rainfall = weather.rainfall_mm_next_3_days
     temp = weather.max_temperature_c_next_3_days
@@ -146,23 +184,29 @@ def health():
 
 
 async def geocode_location(client: httpx.AsyncClient, query: str) -> dict:
-    response = await client.get(
-        GEOCODING_API_URL,
-        params={
-            'name': query,
-            'count': 1,
-            'language': 'en',
-            'format': 'json',
-        },
-    )
-    response.raise_for_status()
-    payload = response.json()
-    results = payload.get('results') or []
+    normalized_query = _normalize_myanmar_query(query)
+    search_terms = [normalized_query]
+    if normalized_query and 'myanmar' not in normalized_query.lower():
+        search_terms.append(f'{normalized_query}, Myanmar')
 
-    if not results:
-        raise HTTPException(status_code=404, detail=f'Could not find a location matching "{query}".')
+    for search_term in search_terms:
+        response = await client.get(
+            GEOCODING_API_URL,
+            params={
+                'name': search_term,
+                'count': 5,
+                'language': 'en',
+                'format': 'json',
+                'countryCode': 'MM',
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+        results = payload.get('results') or []
+        if results:
+            return results[0]
 
-    return results[0]
+    raise HTTPException(status_code=404, detail=f'Could not find a Myanmar location matching "{query}".')
 
 
 async def fetch_weather_snapshot(client: httpx.AsyncClient, latitude: float, longitude: float) -> WeatherSnapshot:
@@ -210,30 +254,23 @@ async def fetch_weather_snapshot(client: httpx.AsyncClient, latitude: float, lon
     )
 
 
-def build_demo_snapshot(data: PredictRequest) -> WeatherSnapshot:
-    rainfall = float(data.rainfall_mm_next_3_days or 45)
-    temperature = float(data.temperature_c or 31)
-    soil_moisture = float(data.soil_moisture_pct or 30)
-    wind = float(data.wind_kph or 22)
-
-    return WeatherSnapshot(
-        current_temperature_c=round(temperature - 1, 1),
-        current_humidity_pct=max(20, min(95, int(round(soil_moisture * 1.8)))),
-        rainfall_mm_next_3_days=round(rainfall, 1),
-        max_temperature_c_next_3_days=round(temperature, 1),
-        max_wind_kph_next_3_days=round(wind, 1),
-        avg_soil_moisture_pct=round(soil_moisture, 1),
-    )
-
-
 async def build_live_alert(client: httpx.AsyncClient, request: PredictRequest) -> Alert:
-    location_match = await geocode_location(client, request.location)
-    resolved_location = _format_location_name(location_match)
-    weather = await fetch_weather_snapshot(
-        client,
-        latitude=float(location_match['latitude']),
-        longitude=float(location_match['longitude']),
-    )
+    if request.latitude is not None and request.longitude is not None:
+        resolved_location = _normalize_myanmar_query(request.location)
+        weather = await fetch_weather_snapshot(
+            client,
+            latitude=request.latitude,
+            longitude=request.longitude,
+        )
+    else:
+        location_match = await geocode_location(client, request.location)
+        resolved_location = _format_location_name(location_match)
+        weather = await fetch_weather_snapshot(
+            client,
+            latitude=float(location_match['latitude']),
+            longitude=float(location_match['longitude']),
+        )
+
     return build_alert(
         location=resolved_location,
         crop=request.crop,
@@ -245,9 +282,9 @@ async def build_live_alert(client: httpx.AsyncClient, request: PredictRequest) -
 @app.get('/sample-alerts', response_model=BatchResponse)
 async def sample_alerts():
     sample_requests = [
-        PredictRequest(location='Hlegu', crop='Rice', rainfall_mm_next_3_days=110, temperature_c=31, soil_moisture_pct=42, wind_kph=24),
-        PredictRequest(location='Magway', crop='Sesame', rainfall_mm_next_3_days=8, temperature_c=39, soil_moisture_pct=16, wind_kph=18),
-        PredictRequest(location='Bago', crop='Pulses', rainfall_mm_next_3_days=82, temperature_c=30, soil_moisture_pct=28, wind_kph=49),
+        PredictRequest(location='Hlegu', crop='Rice'),
+        PredictRequest(location='Magway', crop='Sesame'),
+        PredictRequest(location='Bago', crop='Pulses'),
     ]
 
     async with httpx.AsyncClient(timeout=10.0) as client:
@@ -257,42 +294,18 @@ async def sample_alerts():
         )
 
     alerts = []
-    for request, result in zip(sample_requests, results):
-        if isinstance(result, Exception):
-            alerts.append(
-                build_alert(
-                    location=request.location,
-                    crop=request.crop,
-                    weather=build_demo_snapshot(request),
-                    source='Demo weather profile',
-                )
-            )
-        else:
+    for result in results:
+        if not isinstance(result, Exception):
             alerts.append(result)
+
+    if not alerts:
+        raise HTTPException(status_code=502, detail='Could not load live Myanmar watchlist from weather services.')
 
     return {'alerts': alerts}
 
 
 @app.post('/predict', response_model=Alert)
 async def predict(request: PredictRequest):
-    manual_metrics_present = all(
-        value is not None
-        for value in [
-            request.rainfall_mm_next_3_days,
-            request.temperature_c,
-            request.soil_moisture_pct,
-            request.wind_kph,
-        ]
-    )
-
-    if manual_metrics_present:
-        return build_alert(
-            location=request.location,
-            crop=request.crop,
-            weather=build_demo_snapshot(request),
-            source='Manual climate inputs',
-        )
-
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             return await build_live_alert(client, request)
