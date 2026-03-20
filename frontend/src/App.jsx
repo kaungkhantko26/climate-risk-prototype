@@ -19,6 +19,10 @@ const CUTE_GREETING_INTERVAL_MS = 5 * 60 * 1000
 const ADMIN_BROADCAST_POLL_MS = 15000
 const ADMIN_VIEW_ID = 'admin-noti'
 const ICON_VERSION = '20260321'
+const DEFAULT_NOTIFICATION_CHANNELS = {
+  app: true,
+  temperature: true,
+}
 const CUTE_GREETING_MESSAGES = [
   {
     title: 'သာယာသောနေ့လေးဖြစ်ပါစေ',
@@ -332,6 +336,23 @@ const getRequestedViewFromLocation = () => {
   return 'home'
 }
 
+const getStoredNotificationChannels = () => {
+  if (typeof window === 'undefined') return DEFAULT_NOTIFICATION_CHANNELS
+
+  try {
+    const rawValue = window.localStorage.getItem('climate-monitor-notification-channels')
+    if (!rawValue) return DEFAULT_NOTIFICATION_CHANNELS
+
+    const parsedValue = JSON.parse(rawValue)
+    return {
+      app: parsedValue.app !== false,
+      temperature: parsedValue.temperature !== false,
+    }
+  } catch {
+    return DEFAULT_NOTIFICATION_CHANNELS
+  }
+}
+
 export default function App() {
   const [alerts, setAlerts] = useState([])
   const [selectedAlert, setSelectedAlert] = useState(null)
@@ -355,6 +376,7 @@ export default function App() {
   const [notificationPermission, setNotificationPermission] = useState(
     getNotificationSupport() ? Notification.permission : 'unsupported',
   )
+  const [notificationChannels, setNotificationChannels] = useState(getStoredNotificationChannels)
   const [isStandaloneMode, setIsStandaloneMode] = useState(isStandaloneApp)
   const [notificationPromptDismissed, setNotificationPromptDismissed] = useState(false)
   const temperatureHistoryRef = useRef(new Map())
@@ -530,7 +552,7 @@ export default function App() {
   }, [activeView])
 
   useEffect(() => {
-    if (!notificationsSupported || notificationPermission !== 'granted') return undefined
+    if (!notificationsSupported || notificationPermission !== 'granted' || !notificationChannels.temperature) return undefined
     if (!API_BASE) return undefined
 
     let cancelled = false
@@ -609,9 +631,10 @@ export default function App() {
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [notificationPermission, notificationsSupported])
+  }, [notificationChannels.temperature, notificationPermission, notificationsSupported])
 
   useEffect(() => {
+    if (!notificationChannels.app) return
     if (notificationPermission !== 'granted') return
     if (!isStandaloneMode) return
     if (typeof window === 'undefined') return
@@ -631,10 +654,10 @@ export default function App() {
         },
       },
     )
-  }, [isStandaloneMode, notificationPermission])
+  }, [isStandaloneMode, notificationChannels.app, notificationPermission])
 
   useEffect(() => {
-    if (!notificationsSupported || notificationPermission !== 'granted') return undefined
+    if (!notificationsSupported || notificationPermission !== 'granted' || !notificationChannels.app) return undefined
 
     let cancelled = false
 
@@ -662,13 +685,13 @@ export default function App() {
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [notificationPermission, notificationsSupported])
+  }, [notificationChannels.app, notificationPermission, notificationsSupported])
 
   useEffect(() => {
     if (!API_BASE) return undefined
 
     const shouldPollAdminBroadcast = activeView === ADMIN_VIEW_ID || (
-      notificationsSupported && notificationPermission === 'granted'
+      notificationsSupported && notificationPermission === 'granted' && notificationChannels.app
     )
     if (!shouldPollAdminBroadcast) return undefined
 
@@ -695,6 +718,7 @@ export default function App() {
         if (
           activeView === ADMIN_VIEW_ID
           || notificationPermission !== 'granted'
+          || !notificationChannels.app
           || !nextBroadcast?.id
           || nextBroadcast.id === deliveredBroadcastIdRef.current
         ) {
@@ -735,7 +759,7 @@ export default function App() {
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [API_BASE, activeView, notificationPermission, notificationsSupported])
+  }, [API_BASE, activeView, notificationChannels.app, notificationPermission, notificationsSupported])
 
   const currentAlert = useMemo(() => generatedAlert || selectedAlert, [generatedAlert, selectedAlert])
   const currentMeta = useMemo(() => getRiskMeta(currentAlert), [currentAlert])
@@ -785,12 +809,18 @@ export default function App() {
   const currentLocationLabel = currentAlert?.location || form.location || 'Myanmar Live Feed'
   const currentTemperatureLabel = formatValue(currentAlert?.weather?.current_temperature_c, '°C', 1)
   const notificationStatusLabel = notificationPermission === 'granted'
-    ? 'Temperature notifications are on'
+    ? 'System notifications are ready'
     : notificationPermission === 'denied'
       ? 'Notifications are blocked in this browser'
       : notificationPermission === 'default'
-        ? 'Allow notifications to watch future temperature changes'
+        ? 'Allow notifications to watch app and temperature updates'
         : 'System notifications are not supported here'
+  const appNotificationStatusLabel = notificationChannels.app
+    ? 'App greetings and announcements are on'
+    : 'App greetings and announcements are off'
+  const temperatureNotificationStatusLabel = notificationChannels.temperature
+    ? 'Temperature alerts are on'
+    : 'Temperature alerts are off'
 
   const showSystemNotification = async (title, body, options = {}) => {
     if (!notificationsSupported || Notification.permission !== 'granted') return false
@@ -826,10 +856,17 @@ export default function App() {
     }
   }
 
-  const enableTemperatureNotifications = async () => {
+  const persistNotificationChannels = (nextChannels) => {
+    setNotificationChannels(nextChannels)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('climate-monitor-notification-channels', JSON.stringify(nextChannels))
+    }
+  }
+
+  const requestSystemNotificationPermission = async () => {
     if (!notificationsSupported) {
       setStatus('ဒီ device မှာ system notification ကို မထောက်ပံ့ပါ။')
-      return
+      return false
     }
 
     try {
@@ -838,30 +875,79 @@ export default function App() {
 
       if (nextPermission === 'granted') {
         setNotificationPromptDismissed(false)
-        setStatus('အနာဂတ် အပူချိန်ပြောင်းလဲမှု notification ကို ဖွင့်ပြီးပါပြီ။')
-        await showSystemNotification(
-          'Temperature Watch ဖွင့်ပြီးပါပြီ',
-          'မြန်မာတည်နေရာတွေမှာ အပူချိန်ပြောင်းလဲမှုရှိလာရင် သတိပေးပေးပါမယ်။',
-          {
-            tag: 'notification-enabled',
-            data: {
-              path: '/#',
-              view: 'alerts',
-            },
-          },
-        )
-        return
+        return true
       }
 
       if (nextPermission === 'denied') {
         setStatus('Notification ကို browser settings ထဲမှာ ပိတ်ထားပါသည်။ Allow ပြန်ဖွင့်ပေးပါ။')
-        return
+        return false
       }
 
       setStatus('Notification ခွင့်ပြုချက်ကို မပေးရသေးပါ။')
+      return false
     } catch {
       setStatus('Notification permission ကို မတောင်းခံနိုင်ပါ။')
+      return false
     }
+  }
+
+  const toggleNotificationChannel = async (channel) => {
+    const nextEnabled = !notificationChannels[channel]
+
+    if (nextEnabled && notificationPermission !== 'granted') {
+      const granted = await requestSystemNotificationPermission()
+      if (!granted) return
+    }
+
+    const nextChannels = {
+      ...notificationChannels,
+      [channel]: nextEnabled,
+    }
+    persistNotificationChannels(nextChannels)
+
+    if (nextEnabled) {
+      const statusMessage = channel === 'app'
+        ? 'App notification channel ကို ဖွင့်ပြီးပါပြီ။'
+        : 'Temperature alert channel ကို ဖွင့်ပြီးပါပြီ။'
+      setStatus(statusMessage)
+
+      await showSystemNotification(
+        channel === 'app' ? 'App Notifications ဖွင့်ပြီးပါပြီ' : 'Temperature Alerts ဖွင့်ပြီးပါပြီ',
+        channel === 'app'
+          ? 'Cute greeting နဲ့ app announcement notifications တွေကို လက်ခံရရှိပါမည်။'
+          : 'အပူချိန်အပြောင်းအလဲ alerts တွေကို သီးသန့် လက်ခံရရှိပါမည်။',
+        {
+          tag: channel === 'app' ? 'app-channel-enabled' : 'temperature-channel-enabled',
+          data: {
+            path: '/#',
+            view: channel === 'app' ? 'home' : 'alerts',
+          },
+        },
+      )
+      return
+    }
+
+    setStatus(channel === 'app'
+      ? 'App notification channel ကို ပိတ်လိုက်ပါပြီ။'
+      : 'Temperature alert channel ကို ပိတ်လိုက်ပါပြီ။')
+  }
+
+  const enableNotificationCenter = async () => {
+    const granted = await requestSystemNotificationPermission()
+    if (!granted) return
+
+    setStatus('App notifications နဲ့ temperature alerts ကို သီးခြားထိန်းချုပ်နိုင်ပါပြီ။')
+    await showSystemNotification(
+      'Notification Center ဖွင့်ပြီးပါပြီ',
+      'App notifications နဲ့ temperature alerts ကို သီးခြားဖွင့်ပိတ်နိုင်ပါပြီ။',
+      {
+        tag: 'notification-center-enabled',
+        data: {
+          path: '/#',
+          view: 'home',
+        },
+      },
+    )
   }
 
   const updateAdminBroadcastField = (key, value) => {
@@ -1107,10 +1193,10 @@ export default function App() {
                 <span className="material-symbols-outlined text-3xl">notifications_active</span>
               </div>
               <div>
-                <div className="text-xs uppercase font-label text-primary tracking-widest">Cute Notifications</div>
-                <h3 className="mt-1 text-2xl font-headline font-bold">အပူချိန်ပြောင်းလဲမှုကို ကြိုတင်သတိပေးပါမယ်</h3>
+                <div className="text-xs uppercase font-label text-primary tracking-widest">Notification Center</div>
+                <h3 className="mt-1 text-2xl font-headline font-bold">App noti နဲ့ Temperature alert ကို သီးခြားသုံးနိုင်ပါမယ်</h3>
                 <p className="mt-2 text-on-surface-variant font-body">
-                  Home Screen app အဖြစ်ဖွင့်ထားချိန်မှာ welcome notification ပို့ပေးပြီး ၅ မိနစ်တစ်ကြိမ် cute greeting notification လေးများနဲ့ အပူချိန်ပြောင်းလဲမှုများကို system notification နဲ့ ပြသပါမည်။
+                  System notification permission ကို Allow လုပ်လိုက်ရင် app greetings, admin messages, နဲ့ temperature change alerts တို့ကို သီးခြားဖွင့်ပိတ်နိုင်ပါမည်။
                 </p>
               </div>
             </div>
@@ -1118,11 +1204,11 @@ export default function App() {
               <button
                 className="rounded-full bg-primary px-6 py-3 text-sm font-headline font-bold text-on-primary shadow-lg hover:shadow-xl transition-all"
                 onClick={() => {
-                  void enableTemperatureNotifications()
+                  void enableNotificationCenter()
                 }}
                 type="button"
               >
-                Notification Allow လုပ်ရန်
+                System notifications ကို Allow လုပ်ရန်
               </button>
               <button
                 className="rounded-full border border-outline/10 bg-white px-6 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all"
@@ -1291,17 +1377,49 @@ export default function App() {
               </div>
             </div>
 
-            {notificationPermission !== 'granted' && notificationsSupported ? (
-              <button
-                className="mt-4 rounded-full border border-outline/10 bg-white px-5 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all"
-                onClick={() => {
-                  void enableTemperatureNotifications()
-                }}
-                type="button"
-              >
-                Temperature notifications ကို ဖွင့်ရန်
-              </button>
-            ) : null}
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-2xl bg-surface-container-low p-4 border border-outline/10">
+                <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">App Notifications</div>
+                <div className="mt-2 font-headline font-bold">{appNotificationStatusLabel}</div>
+                <div className="mt-2 text-sm text-on-surface-variant font-body">
+                  Cute greeting, welcome notice, နဲ့ app announcement များအတွက် သီးသန့် channel ဖြစ်ပါသည်။
+                </div>
+                <button
+                  className={`mt-4 rounded-full px-5 py-3 text-sm font-headline font-bold transition-all ${
+                    notificationChannels.app
+                      ? 'border border-outline/10 bg-white text-primary hover:bg-primary hover:text-white'
+                      : 'bg-primary text-on-primary shadow-lg hover:shadow-xl'
+                  }`}
+                  onClick={() => {
+                    void toggleNotificationChannel('app')
+                  }}
+                  type="button"
+                >
+                  {notificationChannels.app ? 'App noti ကို ပိတ်ရန်' : 'App noti ကို ဖွင့်ရန်'}
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-surface-container-low p-4 border border-outline/10">
+                <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Temperature Alerts</div>
+                <div className="mt-2 font-headline font-bold">{temperatureNotificationStatusLabel}</div>
+                <div className="mt-2 text-sm text-on-surface-variant font-body">
+                  Location အလိုက် အပူချိန်ပြောင်းလဲမှုကို app notifications နဲ့ မသက်ဆိုင်ဘဲ သီးခြား စောင့်ကြည့်ပေးပါသည်။
+                </div>
+                <button
+                  className={`mt-4 rounded-full px-5 py-3 text-sm font-headline font-bold transition-all ${
+                    notificationChannels.temperature
+                      ? 'border border-outline/10 bg-white text-primary hover:bg-primary hover:text-white'
+                      : 'bg-primary text-on-primary shadow-lg hover:shadow-xl'
+                  }`}
+                  onClick={() => {
+                    void toggleNotificationChannel('temperature')
+                  }}
+                  type="button"
+                >
+                  {notificationChannels.temperature ? 'Temperature alert ကို ပိတ်ရန်' : 'Temperature alert ကို ဖွင့်ရန်'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
