@@ -52,6 +52,16 @@ npm run dev
 
 Then open the local Vite URL in your browser.
 
+The frontend will call `http://127.0.0.1:8000` automatically in local development.
+
+## GitHub Pages deploy
+
+This repo includes a GitHub Actions workflow at `.github/workflows/deploy.yml` that deploys the `frontend/` app to GitHub Pages on every push to `main`.
+
+If you only deploy the frontend, the site falls back to built-in demo alerts and prediction logic so the Pages version still works without a live backend.
+
+If you deploy the FastAPI backend somewhere else, add a GitHub repository variable named `VITE_API_BASE_URL` with your backend URL and the Pages build will use it.
+
 ## Demo script
 
 1. Open the dashboard and show the sample alerts.
