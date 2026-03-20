@@ -768,7 +768,7 @@ export default function App() {
               </div>
             </div>
 
-            <form className="flex flex-col sm:flex-row gap-3" onSubmit={runMapLookup}>
+            <form className="flex flex-col lg:flex-row gap-3" onSubmit={runMapLookup}>
               <label className="flex-1">
                 <span className="sr-only">Map location search</span>
                 <div className="flex items-center gap-3 rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 shadow-sm">
@@ -789,6 +789,15 @@ export default function App() {
               >
                 <span className="material-symbols-outlined text-lg">search</span>
                 {isSubmitting ? 'ရှာနေပါသည်...' : 'Search'}
+              </button>
+              <button
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-white px-5 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all disabled:opacity-60"
+                disabled={isSubmitting || isLocating}
+                onClick={useCurrentLocation}
+                type="button"
+              >
+                <span className="material-symbols-outlined text-lg">my_location</span>
+                {isLocating ? 'GPS ရှာနေပါသည်...' : 'Use my location'}
               </button>
             </form>
 
@@ -819,72 +828,6 @@ export default function App() {
         </div>
 
         <div className="space-y-5 self-start">
-          <form className="bg-surface-container-low rounded-3xl p-6 border border-outline/10 space-y-4" onSubmit={runMapLookup}>
-            <div className="flex items-center gap-3">
-              <div className="w-14 h-14 rounded-2xl bg-primary-container text-primary flex items-center justify-center">
-                <span className="material-symbols-outlined text-3xl">travel_explore</span>
-              </div>
-              <div>
-                <div className="text-sm text-on-surface-variant font-label">Location Finder</div>
-                <div className="text-xl font-headline font-bold">တည်နေရာရှာဖွေရန်</div>
-              </div>
-            </div>
-
-            <label className="block">
-              <span className="text-sm font-label font-bold text-on-surface-variant">မြန်မာတည်နေရာ</span>
-              <input
-                type="text"
-                value={form.location}
-                onChange={(event) => updateField('location', event.target.value)}
-                placeholder="ဥပမာ - Yangon, Bago, Nay Pyi Taw"
-                className="mt-2 w-full rounded-2xl border-outline/10 bg-white px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-sm font-label font-bold text-on-surface-variant">သီးနှံအမျိုးအစား</span>
-              <select
-                value={form.crop}
-                onChange={(event) => updateField('crop', event.target.value)}
-                className="mt-2 w-full rounded-2xl border-outline/10 bg-white px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
-              >
-                {cropOptions.map((crop) => (
-                  <option key={crop} value={crop}>{crop}</option>
-                ))}
-              </select>
-            </label>
-
-            <div className="flex flex-wrap gap-2">
-              {quickLocations.map((location) => (
-                <button
-                  key={`map-${location}`}
-                  className="px-3 py-2 rounded-full bg-white text-on-surface-variant border border-outline/10 text-sm font-label font-bold hover:bg-primary hover:text-white transition-all"
-                  onClick={() => updateField('location', location)}
-                  type="button"
-                >
-                  {location}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                className="rounded-full bg-primary px-5 py-3 text-sm font-headline font-bold text-on-primary shadow-lg hover:shadow-xl transition-all disabled:opacity-60"
-                disabled={isSubmitting || isLocating}
-              >
-                {isSubmitting ? 'စစ်ဆေးနေပါသည်...' : 'Find on map'}
-              </button>
-              <button
-                className="rounded-full border border-outline/10 bg-white px-5 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all disabled:opacity-60"
-                disabled={isSubmitting || isLocating}
-                onClick={useCurrentLocation}
-                type="button"
-              >
-                {isLocating ? 'GPS ရှာနေပါသည်...' : 'Use my location'}
-              </button>
-            </div>
-          </form>
-
           <div className="bg-white rounded-3xl p-6 border border-outline/10 shadow-[0_12px_48px_rgba(27,29,14,0.04)]">
             <div className="flex items-center gap-3">
               <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${currentMeta.iconPanelClass}`}>
