@@ -87,6 +87,21 @@ const formatForecastTime = (value) => {
   }
 }
 
+const readGeolocationError = (error) => {
+  if (!error) return 'လက်ရှိတည်နေရာကို မရရှိနိုင်ပါ။'
+
+  switch (error.code) {
+    case 1:
+      return 'တည်နေရာအသုံးပြုခွင့်ကို browser ထဲတွင် ခွင့်ပြုပါ။'
+    case 2:
+      return 'လက်ရှိတည်နေရာကို ရှာမတွေ့ပါ။'
+    case 3:
+      return 'တည်နေရာရှာဖွေမှု အချိန်ကုန်သွားပါသည်။'
+    default:
+      return 'လက်ရှိတည်နေရာကို မရရှိနိုင်ပါ။'
+  }
+}
+
 const getRiskMeta = (alert) => {
   if (!alert) {
     return {
@@ -207,6 +222,8 @@ export default function App() {
   const [form, setForm] = useState(defaultForm)
   const [status, setStatus] = useState('မြန်မာနိုင်ငံ ရာသီဥတုဒေတာများကို ချိတ်ဆက်နေပါသည်...')
   const [activeView, setActiveView] = useState('home')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLocating, setIsLocating] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -279,6 +296,8 @@ export default function App() {
     () => views.find((view) => view.id === activeView) || views[0],
     [activeView],
   )
+  const currentLocationLabel = currentAlert?.location || form.location || 'Myanmar Live Feed'
+  const currentTemperatureLabel = formatValue(currentAlert?.weather?.current_temperature_c, '°C', 1)
 
   const updateField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -287,29 +306,25 @@ export default function App() {
   const focusAlert = (alert, nextView = activeView) => {
     setSelectedAlert(alert)
     setGeneratedAlert(null)
+    setForm((prev) => ({ ...prev, location: alert.location, crop: alert.crop }))
     setActiveView(nextView)
   }
 
-  const runPrediction = async (event) => {
-    event.preventDefault()
-
-    const payload = {
-      location: form.location.trim(),
-      crop: form.crop,
-    }
-
-    if (!payload.location) {
-      setStatus('မြန်မာနိုင်ငံအတွင်း တည်နေရာတစ်ခုကို ထည့်သွင်းပါ။')
-      return
-    }
-
+  const requestPrediction = async (payload, nextView) => {
     if (!API_BASE) {
       setGeneratedAlert(null)
+      setIsSubmitting(false)
+      setIsLocating(false)
       setStatus('Live backend URL မသတ်မှတ်ရသေးပါ။')
       return
     }
 
-    setStatus(`${payload.location} အတွက် live forecast ကို စစ်ဆေးနေပါသည်...`)
+    const requestedLocation = payload.latitude !== undefined && payload.longitude !== undefined
+      ? 'သင့်လက်ရှိတည်နေရာ'
+      : payload.location
+
+    setIsSubmitting(true)
+    setStatus(`${requestedLocation} အတွက် live forecast ကို စစ်ဆေးနေပါသည်...`)
 
     try {
       const response = await fetch(`${API_BASE}/predict`, {
@@ -325,12 +340,77 @@ export default function App() {
       const data = await response.json()
       setGeneratedAlert(data)
       setSelectedAlert(data)
-      setActiveView('home')
+      setForm((prev) => ({ ...prev, location: data.location, crop: data.crop }))
+      setActiveView(nextView)
       setStatus(`${data.location} အတွက် live forecast ကို ရရှိပါပြီ။`)
     } catch (error) {
       setGeneratedAlert(null)
       setStatus(error.message || 'Live weather lookup failed.')
+    } finally {
+      setIsSubmitting(false)
+      setIsLocating(false)
     }
+  }
+
+  const runTypedLookup = async (nextView) => {
+    const payload = {
+      location: form.location.trim(),
+      crop: form.crop,
+    }
+
+    if (!payload.location) {
+      setStatus('မြန်မာနိုင်ငံအတွင်း တည်နေရာတစ်ခုကို ထည့်သွင်းပါ။')
+      return
+    }
+
+    await requestPrediction(payload, nextView)
+  }
+
+  const runPrediction = async (event) => {
+    event.preventDefault()
+    await runTypedLookup('home')
+  }
+
+  const runMapLookup = async (event) => {
+    event.preventDefault()
+    await runTypedLookup('map')
+  }
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setStatus('ဒီ browser မှာ location service ကို မထောက်ပံ့ပါ။')
+      return
+    }
+
+    if (!API_BASE) {
+      setStatus('Live backend URL မသတ်မှတ်ရသေးပါ။')
+      return
+    }
+
+    setIsLocating(true)
+    setStatus('သင့်လက်ရှိတည်နေရာကို ရှာနေပါသည်...')
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const payload = {
+          location: 'လက်ရှိတည်နေရာ',
+          crop: form.crop,
+          latitude: Number(position.coords.latitude.toFixed(6)),
+          longitude: Number(position.coords.longitude.toFixed(6)),
+        }
+
+        void requestPrediction(payload, 'map')
+      },
+      (error) => {
+        setIsLocating(false)
+        setStatus(readGeolocationError(error))
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 300000,
+      },
+    )
   }
 
   const renderHomeView = () => (
@@ -440,13 +520,24 @@ export default function App() {
               <div className="flex items-start gap-3">
                 <span className="material-symbols-outlined text-primary">info</span>
                 <p className="text-sm text-on-surface-variant font-body">
-                  Dashboard nav များအားလုံးကို working views အဖြစ် ခွဲထားပြီး မြေပုံကဏ္ဍတွင် usable OpenStreetMap embed ကို ထည့်ထားပါသည်။
+                  ရွေးချယ်ထားသော တည်နေရာကို မြေပုံပေါ်တွင် mark လုပ်ပေးပြီး လက်ရှိအပူချိန်ကို မြေပုံဘေး panel တွင် တိုက်ရိုက်ပြသပါမည်။
                 </p>
               </div>
             </div>
 
-            <div className="flex justify-end">
-              <button className="bg-primary text-on-primary px-8 py-3 rounded-full font-headline font-bold shadow-lg hover:shadow-xl transition-all active:scale-95">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <button
+                className="rounded-full border border-outline/10 bg-white px-5 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all disabled:opacity-60"
+                disabled={isSubmitting || isLocating}
+                onClick={useCurrentLocation}
+                type="button"
+              >
+                {isLocating ? 'တည်နေရာ ရှာနေပါသည်...' : 'My location ကို သုံးရန်'}
+              </button>
+              <button
+                className="bg-primary text-on-primary px-8 py-3 rounded-full font-headline font-bold shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:opacity-60"
+                disabled={isSubmitting || isLocating}
+              >
                 Live Risk စစ်ဆေးရန်
               </button>
             </div>
@@ -646,7 +737,7 @@ export default function App() {
             <p className="font-label text-primary text-sm font-bold uppercase tracking-widest">Map</p>
             <h3 className="text-3xl font-headline font-extrabold">မြေပုံ</h3>
             <p className="text-on-surface-variant font-body mt-2">
-              Mockup ထဲက static map နေရာကို usable OpenStreetMap embed နဲ့ အစားထိုးထားပြီး ရွေးချယ်ထားသော alert တည်နေရာကို တိုက်ရိုက်ကြည့်ရှုနိုင်ပါသည်။
+              ရွေးထားသော တည်နေရာ သို့မဟုတ် သင့်လက်ရှိတည်နေရာကို မြေပုံပေါ်တွင် mark လုပ်ပြီး အပူချိန်နှင့် forecast summary ကို မြေပုံဘေးတွင် ချက်ချင်းကြည့်နိုင်ပါသည်။
             </p>
           </div>
           {mapLinks ? (
@@ -663,49 +754,168 @@ export default function App() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
-        <div className="bg-white rounded-3xl p-4 md:p-5 border border-outline/10 shadow-[0_12px_48px_rgba(27,29,14,0.08)] overflow-hidden">
-          <div className="rounded-[2rem] overflow-hidden border border-outline/10 bg-surface-container-low">
-            {mapLinks ? (
-              <iframe
-                className="w-full h-[560px]"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                src={mapLinks.embedUrl}
-                title="Myanmar climate risk map"
-              />
-            ) : (
-              <div className="h-[560px] flex items-center justify-center text-on-surface-variant font-body px-6 text-center">
-                တည်နေရာဒေတာ မရရှိသေးပါ။ Alert တစ်ခုကို ရွေးချယ်ပါ။
+      <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.82fr)] gap-6 items-center">
+        <div className="bg-white rounded-3xl p-4 md:p-6 border border-outline/10 shadow-[0_12px_48px_rgba(27,29,14,0.08)] overflow-hidden flex items-center justify-center">
+          <div className="w-full max-w-[760px] space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-primary-container px-4 py-2 text-sm font-headline font-bold text-on-primary-container">
+                <span className="material-symbols-outlined text-base">place</span>
+                {currentLocationLabel}
               </div>
-            )}
+              <div className="inline-flex items-center gap-2 rounded-full bg-surface-container-low px-4 py-2 text-sm font-headline font-bold text-on-surface">
+                <span className="material-symbols-outlined text-primary text-base">device_thermostat</span>
+                {currentTemperatureLabel}
+              </div>
+            </div>
+
+            <form className="flex flex-col sm:flex-row gap-3" onSubmit={runMapLookup}>
+              <label className="flex-1">
+                <span className="sr-only">Map location search</span>
+                <div className="flex items-center gap-3 rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 shadow-sm">
+                  <span className="material-symbols-outlined text-primary">search</span>
+                  <input
+                    type="text"
+                    value={form.location}
+                    onChange={(event) => updateField('location', event.target.value)}
+                    placeholder="မြေပုံပေါ်တွင် တည်နေရာရှာရန်"
+                    className="w-full border-0 bg-transparent p-0 text-on-surface placeholder:text-on-surface-variant focus:ring-0"
+                  />
+                </div>
+              </label>
+              <button
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-headline font-bold text-on-primary shadow-lg hover:shadow-xl transition-all disabled:opacity-60"
+                disabled={isSubmitting || isLocating}
+                type="submit"
+              >
+                <span className="material-symbols-outlined text-lg">search</span>
+                {isSubmitting ? 'ရှာနေပါသည်...' : 'Search'}
+              </button>
+            </form>
+
+            <div className="rounded-[2rem] overflow-hidden border border-outline/10 bg-surface-container-low relative">
+              {mapLinks ? (
+                <>
+                  <div className="absolute left-4 top-4 z-10 max-w-[78%] rounded-full bg-white/95 px-4 py-2 text-sm font-headline font-bold text-primary shadow-lg backdrop-blur">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="material-symbols-outlined text-base">location_on</span>
+                      <span className="truncate">{currentLocationLabel}</span>
+                    </span>
+                  </div>
+                  <iframe
+                    className="w-full h-[500px] md:h-[540px]"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    src={mapLinks.embedUrl}
+                    title="Myanmar climate risk map"
+                  />
+                </>
+              ) : (
+                <div className="h-[500px] md:h-[540px] flex items-center justify-center text-on-surface-variant font-body px-6 text-center">
+                  တည်နေရာဒေတာ မရရှိသေးပါ။ Alert တစ်ခုကို ရွေးချယ်ပါ။
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-surface-container-low rounded-3xl p-6 border border-outline/10">
+        <div className="space-y-5 self-center">
+          <form className="bg-surface-container-low rounded-3xl p-6 border border-outline/10 space-y-4" onSubmit={runMapLookup}>
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-primary-container text-primary flex items-center justify-center">
+                <span className="material-symbols-outlined text-3xl">travel_explore</span>
+              </div>
+              <div>
+                <div className="text-sm text-on-surface-variant font-label">Location Finder</div>
+                <div className="text-xl font-headline font-bold">တည်နေရာရှာဖွေရန်</div>
+              </div>
+            </div>
+
+            <label className="block">
+              <span className="text-sm font-label font-bold text-on-surface-variant">မြန်မာတည်နေရာ</span>
+              <input
+                type="text"
+                value={form.location}
+                onChange={(event) => updateField('location', event.target.value)}
+                placeholder="ဥပမာ - Yangon, Bago, Nay Pyi Taw"
+                className="mt-2 w-full rounded-2xl border-outline/10 bg-white px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-label font-bold text-on-surface-variant">သီးနှံအမျိုးအစား</span>
+              <select
+                value={form.crop}
+                onChange={(event) => updateField('crop', event.target.value)}
+                className="mt-2 w-full rounded-2xl border-outline/10 bg-white px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
+              >
+                {cropOptions.map((crop) => (
+                  <option key={crop} value={crop}>{crop}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex flex-wrap gap-2">
+              {quickLocations.map((location) => (
+                <button
+                  key={`map-${location}`}
+                  className="px-3 py-2 rounded-full bg-white text-on-surface-variant border border-outline/10 text-sm font-label font-bold hover:bg-primary hover:text-white transition-all"
+                  onClick={() => updateField('location', location)}
+                  type="button"
+                >
+                  {location}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                className="rounded-full bg-primary px-5 py-3 text-sm font-headline font-bold text-on-primary shadow-lg hover:shadow-xl transition-all disabled:opacity-60"
+                disabled={isSubmitting || isLocating}
+              >
+                {isSubmitting ? 'စစ်ဆေးနေပါသည်...' : 'Find on map'}
+              </button>
+              <button
+                className="rounded-full border border-outline/10 bg-white px-5 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all disabled:opacity-60"
+                disabled={isSubmitting || isLocating}
+                onClick={useCurrentLocation}
+                type="button"
+              >
+                {isLocating ? 'GPS ရှာနေပါသည်...' : 'Use my location'}
+              </button>
+            </div>
+          </form>
+
+          <div className="bg-white rounded-3xl p-6 border border-outline/10 shadow-[0_12px_48px_rgba(27,29,14,0.04)]">
             <div className="flex items-center gap-3">
               <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${currentMeta.iconPanelClass}`}>
                 <span className="material-symbols-outlined text-3xl">{currentMeta.icon}</span>
               </div>
               <div>
-                <div className="text-sm text-on-surface-variant font-label">Map Focus</div>
-                <div className="text-xl font-headline font-bold">{currentAlert?.location || 'Myanmar Live Feed'}</div>
+                <div className="text-sm text-on-surface-variant font-label">Location Markup</div>
+                <div className="text-xl font-headline font-bold">{currentLocationLabel}</div>
               </div>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl bg-white p-4 border border-outline/10">
+              <div className="rounded-2xl bg-surface-container-low p-4 border border-outline/10">
+                <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Current Temp</div>
+                <div className="mt-1 text-3xl font-headline font-extrabold">{currentTemperatureLabel}</div>
+              </div>
+              <div className="rounded-2xl bg-surface-container-low p-4 border border-outline/10">
                 <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Coordinates</div>
                 <div className="mt-1 text-lg font-headline font-bold">{formatCoordinates(currentAlert?.weather)}</div>
               </div>
-              <div className="rounded-2xl bg-white p-4 border border-outline/10">
+              <div className="rounded-2xl bg-surface-container-low p-4 border border-outline/10">
                 <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Risk</div>
                 <div className="mt-1 text-lg font-headline font-bold">{currentAlert?.risk || 'Unavailable'}</div>
               </div>
+              <div className="rounded-2xl bg-surface-container-low p-4 border border-outline/10">
+                <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Forecast Time</div>
+                <div className="mt-1 text-sm font-headline font-bold">{formatForecastTime(currentAlert?.weather?.forecast_time)}</div>
+              </div>
             </div>
 
-            <div className="mt-4 rounded-2xl bg-white p-4 border border-outline/10 text-sm text-on-surface-variant font-body">
+            <div className="mt-4 rounded-2xl bg-surface-container-low p-4 border border-outline/10 text-sm text-on-surface-variant font-body">
               {currentAlert?.advice || 'မြေပုံအတွက် live alert တစ်ခုကို ရွေးချယ်ပါ။'}
             </div>
           </div>
@@ -724,7 +934,7 @@ export default function App() {
                     <div>
                       <div className="font-headline font-bold">{alert.location}</div>
                       <div className="text-xs text-on-surface-variant font-label mt-1">
-                        {formatValue(alert.weather?.rainfall_mm_next_3_days, ' mm', 1)} rain • {formatValue(alert.weather?.max_wind_kph_next_3_days, ' kph', 1)}
+                        {formatValue(alert.weather?.current_temperature_c, '°C', 1)} • {formatValue(alert.weather?.rainfall_mm_next_3_days, ' mm', 1)} rain
                       </div>
                     </div>
                     <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium ${badgeClass(alert.risk)}`}>
