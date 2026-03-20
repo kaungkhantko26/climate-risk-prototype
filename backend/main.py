@@ -175,6 +175,13 @@ class BatchResponse(BaseModel):
     alerts: List[Alert]
 
 
+class LocationOption(BaseModel):
+    region: str
+    district: str
+    query: str
+    products: List[str] = Field(default_factory=list)
+
+
 def _mean(values: List[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
@@ -447,6 +454,19 @@ async def sample_alerts():
     if not alerts:
         raise HTTPException(status_code=502, detail='Could not load sample Myanmar alerts from weather services.')
     return {'alerts': alerts}
+
+
+@app.get('/locations', response_model=List[LocationOption])
+def locations():
+    return [
+        LocationOption(
+            region=str(item['region']),
+            district=str(item['label']),
+            query=str(item['query']),
+            products=[str(product) for product in item.get('products') or []],
+        )
+        for item in WATCHLIST_ITEMS
+    ]
 
 
 @app.get('/live-notifications', response_model=BatchResponse)

@@ -6,7 +6,6 @@ const API_BASE = (
 ).replace(/\/$/, '')
 
 const cropOptions = ['Rice', 'Sesame', 'Pulses', 'Maize', 'Groundnut', 'Vegetables']
-const quickLocations = ['Hlegu', 'Magway', 'Bago', 'Yangon', 'Mandalay', 'Nay Pyi Taw']
 const views = [
   { id: 'home', icon: 'dashboard', label: 'ပင်မစာမျက်နှာ' },
   { id: 'alerts', icon: 'notifications', label: 'သတိပေးချက်များ' },
@@ -42,7 +41,7 @@ const quickActions = [
 ]
 
 const defaultForm = {
-  location: 'Hlegu',
+  location: '',
   crop: 'Rice',
 }
 
@@ -229,11 +228,26 @@ const pickMatchingAlert = (currentAlert, nextAlerts) => {
   ) || nextAlerts[0]
 }
 
+const groupLocationOptions = (options) => {
+  const regionMap = new Map()
+
+  options.forEach((option) => {
+    if (!regionMap.has(option.region)) {
+      regionMap.set(option.region, [])
+    }
+
+    regionMap.get(option.region).push(option)
+  })
+
+  return Array.from(regionMap.entries()).map(([region, items]) => ({ region, items }))
+}
+
 export default function App() {
   const [alerts, setAlerts] = useState([])
   const [selectedAlert, setSelectedAlert] = useState(null)
   const [notifications, setNotifications] = useState([])
   const [selectedNotification, setSelectedNotification] = useState(null)
+  const [locationOptions, setLocationOptions] = useState([])
   const [generatedAlert, setGeneratedAlert] = useState(null)
   const [form, setForm] = useState(defaultForm)
   const [status, setStatus] = useState('မြန်မာနိုင်ငံ ရာသီဥတုဒေတာများကို ချိတ်ဆက်နေပါသည်...')
@@ -276,6 +290,43 @@ export default function App() {
     }
 
     loadAlerts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadLocations = async () => {
+      if (!API_BASE) return
+
+      try {
+        const response = await fetch(`${API_BASE}/locations`, { cache: 'no-store' })
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, 'Location menu ကို မရရှိနိုင်ပါ။'))
+        }
+
+        const nextOptions = await response.json()
+        if (cancelled) return
+        setLocationOptions(nextOptions)
+        setForm((prev) => {
+          const hasExistingOption = nextOptions.some((option) => option.query === prev.location)
+          if (hasExistingOption) return prev
+
+          return {
+            ...prev,
+            location: nextOptions[0]?.query || prev.location,
+          }
+        })
+      } catch {
+        if (cancelled) return
+        setLocationOptions([])
+      }
+    }
+
+    loadLocations()
 
     return () => {
       cancelled = true
@@ -369,6 +420,11 @@ export default function App() {
     () => views.find((view) => view.id === activeView) || views[0],
     [activeView],
   )
+  const groupedLocationOptions = useMemo(() => groupLocationOptions(locationOptions), [locationOptions])
+  const selectedLocationOption = useMemo(
+    () => locationOptions.find((option) => option.query === form.location) || null,
+    [locationOptions, form.location],
+  )
   const currentLocationLabel = currentAlert?.location || form.location || 'Myanmar Live Feed'
   const currentTemperatureLabel = formatValue(currentAlert?.weather?.current_temperature_c, '°C', 1)
 
@@ -379,7 +435,7 @@ export default function App() {
   const focusAlert = (alert, nextView = activeView) => {
     setSelectedAlert(alert)
     setGeneratedAlert(null)
-    setForm((prev) => ({ ...prev, location: alert.location, crop: alert.crop }))
+    setForm((prev) => ({ ...prev, crop: alert.crop }))
     setActiveView(nextView)
   }
 
@@ -413,7 +469,13 @@ export default function App() {
       const data = await response.json()
       setGeneratedAlert(data)
       setSelectedAlert(data)
-      setForm((prev) => ({ ...prev, location: data.location, crop: data.crop }))
+      setForm((prev) => ({
+        ...prev,
+        crop: data.crop,
+        location: payload.latitude !== undefined && payload.longitude !== undefined
+          ? prev.location
+          : payload.location,
+      }))
       setActiveView(nextView)
       setStatus(`${data.location} အတွက် live forecast ကို ရရှိပါပြီ။`)
     } catch (error) {
@@ -551,13 +613,25 @@ export default function App() {
           <form className="space-y-5" onSubmit={runPrediction}>
             <label className="block">
               <span className="text-sm font-label font-bold text-on-surface-variant">မြန်မာတည်နေရာ</span>
-              <input
-                type="text"
+              <select
                 value={form.location}
                 onChange={(event) => updateField('location', event.target.value)}
-                placeholder="ဥပမာ - Hlegu, Yangon, Nay Pyi Taw"
                 className="mt-2 w-full rounded-2xl border-outline/10 bg-surface-container-low px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
-              />
+                disabled={locationOptions.length === 0}
+              >
+                {locationOptions.length === 0 ? (
+                  <option value="">Location menu loading...</option>
+                ) : null}
+                {groupedLocationOptions.map((group) => (
+                  <optgroup key={group.region} label={group.region}>
+                    {group.items.map((option) => (
+                      <option key={`${option.region}-${option.district}`} value={option.query}>
+                        {option.district}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </label>
 
             <label className="block">
@@ -573,19 +647,13 @@ export default function App() {
               </select>
             </label>
 
-            <div>
-              <div className="text-sm font-label font-bold text-on-surface-variant mb-2">အမြန်ရွေးချယ်ရန်</div>
-              <div className="flex flex-wrap gap-2">
-                {quickLocations.map((location) => (
-                  <button
-                    key={location}
-                    type="button"
-                    onClick={() => updateField('location', location)}
-                    className="px-3 py-2 rounded-full bg-surface-container-low text-on-surface-variant border border-outline/10 text-sm font-label font-bold hover:bg-primary hover:text-white transition-all"
-                  >
-                    {location}
-                  </button>
-                ))}
+            <div className="rounded-2xl bg-surface-container-low p-4 border border-outline/10">
+              <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Selected Menu</div>
+              <div className="mt-2 font-headline font-bold">
+                {selectedLocationOption ? `${selectedLocationOption.district}, ${selectedLocationOption.region}` : 'Location menu loading...'}
+              </div>
+              <div className="mt-2 text-sm text-on-surface-variant font-body">
+                {selectedLocationOption ? formatProducts(selectedLocationOption.products) : 'Menu data မရရှိသေးပါ။'}
               </div>
             </div>
 
@@ -912,16 +980,28 @@ export default function App() {
 
             <form className="flex flex-col lg:flex-row gap-3" onSubmit={runMapLookup}>
               <label className="flex-1">
-                <span className="sr-only">Map location search</span>
+                <span className="sr-only">Map location menu</span>
                 <div className="flex items-center gap-3 rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 shadow-sm">
-                  <span className="material-symbols-outlined text-primary">search</span>
-                  <input
-                    type="text"
+                  <span className="material-symbols-outlined text-primary">list</span>
+                  <select
                     value={form.location}
                     onChange={(event) => updateField('location', event.target.value)}
-                    placeholder="မြေပုံပေါ်တွင် တည်နေရာရှာရန်"
-                    className="w-full border-0 bg-transparent p-0 text-on-surface placeholder:text-on-surface-variant focus:ring-0"
-                  />
+                    className="w-full border-0 bg-transparent p-0 text-on-surface focus:ring-0"
+                    disabled={locationOptions.length === 0}
+                  >
+                    {locationOptions.length === 0 ? (
+                      <option value="">Location menu loading...</option>
+                    ) : null}
+                    {groupedLocationOptions.map((group) => (
+                      <optgroup key={`map-${group.region}`} label={group.region}>
+                        {group.items.map((option) => (
+                          <option key={`map-${option.region}-${option.district}`} value={option.query}>
+                            {option.district}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
                 </div>
               </label>
               <button
@@ -929,8 +1009,8 @@ export default function App() {
                 disabled={isSubmitting || isLocating}
                 type="submit"
               >
-                <span className="material-symbols-outlined text-lg">search</span>
-                {isSubmitting ? 'ရှာနေပါသည်...' : 'Search'}
+                <span className="material-symbols-outlined text-lg">map</span>
+                {isSubmitting ? 'ပြနေပါသည်...' : 'Show on map'}
               </button>
               <button
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-white px-5 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all disabled:opacity-60"
