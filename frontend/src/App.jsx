@@ -15,7 +15,34 @@ const views = [
 const SYSTEM_NOTIFICATION_POLL_MS = 60000
 const SYSTEM_NOTIFICATION_DELTA_C = 1.5
 const SYSTEM_NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000
+const CUTE_GREETING_INTERVAL_MS = 5 * 60 * 1000
 const ICON_VERSION = '20260321'
+const CUTE_GREETING_MESSAGES = [
+  {
+    title: 'သာယာသောနေ့လေးဖြစ်ပါစေ',
+    body: 'Climate Monitor က ဒီနေ့ရဲ့ ရာသီဥတုအပြောင်းအလဲတွေကို ချိုချိုလေး စောင့်ကြည့်ပေးနေပါတယ်။',
+  },
+  {
+    title: 'မင်္ဂလာပါ တောင်သူလေး',
+    body: 'လက်ရှိအပူချိန်နဲ့ forecast update တွေကို app ထဲမှာ ပြင်ဆင်ထားပြီး စစ်ဆေးနိုင်ပါတယ်။',
+  },
+  {
+    title: 'နေ့လယ်ခင်းလေးကို အေးအေးချမ်းချမ်းဖြတ်သန်းပါ',
+    body: 'မြို့နယ်အလိုက် temperature feed နဲ့ climate watch ကို Climate Monitor က ဆက်လက်ပြပေးနေပါတယ်။',
+  },
+  {
+    title: 'စိုက်ခင်းအတွက် ချစ်စရာသတိပေးချက်လေး',
+    body: 'အပူချိန်ပြောင်းလဲမှုရှိလာရင် app က သတိပေးမယ်နော်။ လိုအပ်ရင် map view ကို ဝင်စစ်ပါ။',
+  },
+  {
+    title: 'Climate Monitor က နှုတ်ဆက်ပါတယ်',
+    body: 'မြန်မာတည်နေရာအလိုက် weather watch နဲ့ notification feed ကို အချိန်နဲ့တပြေးညီ ပြင်ဆင်ထားပါတယ်။',
+  },
+  {
+    title: 'အလုပ်တွေ အဆင်ပြေပါစေ',
+    body: 'ဒီ app ထဲက live risk detector, map နဲ့ notifications တွေကို အချိန်မရွေး ပြန်ဝင်စစ်နိုင်ပါတယ်။',
+  },
+]
 
 const quickActions = [
   {
@@ -274,6 +301,22 @@ const getTemperatureChangeCopy = (alert, delta) => {
   }
 }
 
+const pickCuteGreetingMessage = (previousIndex) => {
+  if (CUTE_GREETING_MESSAGES.length === 1) {
+    return { ...CUTE_GREETING_MESSAGES[0], index: 0 }
+  }
+
+  let nextIndex = Math.floor(Math.random() * CUTE_GREETING_MESSAGES.length)
+  while (nextIndex === previousIndex) {
+    nextIndex = Math.floor(Math.random() * CUTE_GREETING_MESSAGES.length)
+  }
+
+  return {
+    ...CUTE_GREETING_MESSAGES[nextIndex],
+    index: nextIndex,
+  }
+}
+
 export default function App() {
   const [alerts, setAlerts] = useState([])
   const [selectedAlert, setSelectedAlert] = useState(null)
@@ -297,6 +340,7 @@ export default function App() {
   const temperatureHistoryRef = useRef(new Map())
   const lastSystemNotificationAtRef = useRef(0)
   const systemNotificationBootstrappedRef = useRef(false)
+  const lastGreetingIndexRef = useRef(-1)
 
   const notificationsSupported = getNotificationSupport()
 
@@ -545,6 +589,37 @@ export default function App() {
     )
   }, [isStandaloneMode, notificationPermission])
 
+  useEffect(() => {
+    if (!notificationsSupported || notificationPermission !== 'granted') return undefined
+
+    let cancelled = false
+
+    const sendCuteGreeting = async () => {
+      if (cancelled) return
+
+      const nextGreeting = pickCuteGreetingMessage(lastGreetingIndexRef.current)
+      lastGreetingIndexRef.current = nextGreeting.index
+
+      await showSystemNotification(nextGreeting.title, nextGreeting.body, {
+        tag: 'cute-greeting',
+        renotify: true,
+        data: {
+          path: '/#',
+          view: 'home',
+        },
+      })
+    }
+
+    const intervalId = window.setInterval(() => {
+      void sendCuteGreeting()
+    }, CUTE_GREETING_INTERVAL_MS)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [notificationPermission, notificationsSupported])
+
   const currentAlert = useMemo(() => generatedAlert || selectedAlert, [generatedAlert, selectedAlert])
   const currentMeta = useMemo(() => getRiskMeta(currentAlert), [currentAlert])
   const guideCards = useMemo(() => getGuideCards(currentAlert), [currentAlert])
@@ -612,8 +687,8 @@ export default function App() {
       lang: 'my',
       tag: options.tag,
       data: options.data,
-      renotify: false,
-      requireInteraction: false,
+      renotify: Boolean(options.renotify),
+      requireInteraction: Boolean(options.requireInteraction),
     }
 
     try {
@@ -858,7 +933,7 @@ export default function App() {
                 <div className="text-xs uppercase font-label text-primary tracking-widest">Cute Notifications</div>
                 <h3 className="mt-1 text-2xl font-headline font-bold">အပူချိန်ပြောင်းလဲမှုကို ကြိုတင်သတိပေးပါမယ်</h3>
                 <p className="mt-2 text-on-surface-variant font-body">
-                  Home Screen app အဖြစ်ဖွင့်ထားချိန်မှာ welcome notification ပို့ပေးပြီး မြန်မာတည်နေရာတွေမှာ အပူချိန်သိသာစွာ ပြောင်းလဲလာရင် system notification နဲ့ ပြသပါမည်။
+                  Home Screen app အဖြစ်ဖွင့်ထားချိန်မှာ welcome notification ပို့ပေးပြီး ၅ မိနစ်တစ်ကြိမ် cute greeting notification လေးများနဲ့ အပူချိန်ပြောင်းလဲမှုများကို system notification နဲ့ ပြသပါမည်။
                 </p>
               </div>
             </div>
@@ -1026,8 +1101,8 @@ export default function App() {
                 <div className="mt-2 font-headline font-bold">{notificationStatusLabel}</div>
                 <div className="mt-1 text-sm text-on-surface-variant font-body">
                   {isStandaloneMode
-                    ? 'Home Screen app mode ဖြင့် ဖွင့်ထားပြီးပါပြီ။'
-                    : 'Home Screen app mode မဟုတ်သေးပါ။ Install လုပ်ထားရင် welcome notification ပိုကောင်းစွာ ပြသနိုင်ပါသည်။'}
+                    ? 'Home Screen app mode ဖြင့် ဖွင့်ထားပြီးပါပြီ။ Cute greeting notification ကို ၅ မိနစ်တစ်ကြိမ် ရနိုင်ပါသည်။'
+                    : 'Home Screen app mode မဟုတ်သေးပါ။ Install လုပ်ထားရင် welcome notification နဲ့ ၅ မိနစ်တစ်ကြိမ် greeting notice ကို ပိုကောင်းစွာ ပြသနိုင်ပါသည်။'}
                 </div>
               </div>
               <div className={`rounded-full px-3 py-1 text-xs font-headline font-bold ${
