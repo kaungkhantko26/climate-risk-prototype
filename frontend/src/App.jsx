@@ -87,6 +87,11 @@ const formatForecastTime = (value) => {
   }
 }
 
+const formatProducts = (products) => {
+  if (!products?.length) return 'Crop profile unavailable'
+  return products.join(' • ')
+}
+
 const readGeolocationError = (error) => {
   if (!error) return 'လက်ရှိတည်နေရာကို မရရှိနိုင်ပါ။'
 
@@ -770,6 +775,16 @@ export default function App() {
                     <p className="text-sm text-on-surface-variant font-body mt-1">
                       Current temperature is {formatValue(alert.weather?.current_temperature_c, '°C', 1)} with humidity {formatValue(alert.weather?.current_humidity_pct, '%')} and rain outlook {formatValue(alert.weather?.rainfall_mm_next_3_days, ' mm', 1)}.
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(alert.products || []).slice(0, 4).map((product) => (
+                        <span
+                          key={`${alert.location}-${product}`}
+                          className="rounded-full bg-white px-3 py-1 text-xs font-headline font-bold text-primary border border-outline/10"
+                        >
+                          {product}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-white px-4 py-3 border border-outline/10 min-w-[130px] text-center">
                     <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Current Temp</div>
@@ -824,6 +839,10 @@ export default function App() {
               <div className="text-2xl font-headline font-extrabold">{activeNotification.location}</div>
               <div className="text-on-surface-variant font-body">
                 {formatValue(activeNotification.weather?.current_temperature_c, '°C', 1)} current temperature, {formatValue(activeNotification.weather?.current_humidity_pct, '%')} humidity, and {formatValue(activeNotification.weather?.rainfall_mm_next_3_days, ' mm', 1)} rain in the next 3 days.
+              </div>
+              <div className="rounded-2xl bg-surface-container-low p-4">
+                <div className="text-xs font-label text-on-surface-variant">Main Crops / Products</div>
+                <div className="mt-2 font-headline font-bold">{formatProducts(activeNotification.products)}</div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-surface-container-low p-4">
