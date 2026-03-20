@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -12,6 +12,10 @@ const views = [
   { id: 'map', icon: 'map', label: 'မြေပုံ' },
   { id: 'guide', icon: 'menu_book', label: 'လမ်းညွှန်' },
 ]
+const SYSTEM_NOTIFICATION_POLL_MS = 60000
+const SYSTEM_NOTIFICATION_DELTA_C = 1.5
+const SYSTEM_NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000
+const ICON_VERSION = '20260321'
 
 const quickActions = [
   {
@@ -242,6 +246,34 @@ const groupLocationOptions = (options) => {
   return Array.from(regionMap.entries()).map(([region, items]) => ({ region, items }))
 }
 
+const isStandaloneApp = () => {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+}
+
+const getNotificationSupport = () => (
+  typeof window !== 'undefined'
+  && 'Notification' in window
+  && 'serviceWorker' in navigator
+)
+
+const getTemperatureChangeCopy = (alert, delta) => {
+  const currentTemperature = formatValue(alert.weather?.current_temperature_c, '°C', 1)
+  const magnitude = Math.abs(delta).toFixed(1)
+
+  if (delta > 0) {
+    return {
+      title: `${alert.location} ပိုပူလာနေပါသည်`,
+      body: `အခု ${currentTemperature} ရောက်နေပြီး ${magnitude}°C တက်လာပါပြီ။ ${alert.crop} စိုက်ခင်းအတွက် ရေပြင်ဆင်ထားပါ။`,
+    }
+  }
+
+  return {
+    title: `${alert.location} အပူနည်းလာနေပါသည်`,
+    body: `အခု ${currentTemperature} ဖြစ်နေပြီး ${magnitude}°C လျော့သွားပါပြီ။ ရာသီဥတုအပြောင်းအလဲကို ဆက်စောင့်ကြည့်ပါ။`,
+  }
+}
+
 export default function App() {
   const [alerts, setAlerts] = useState([])
   const [selectedAlert, setSelectedAlert] = useState(null)
@@ -257,6 +289,16 @@ export default function App() {
   const [isLocating, setIsLocating] = useState(false)
   const [notificationsError, setNotificationsError] = useState('')
   const [lastFeedRefresh, setLastFeedRefresh] = useState(null)
+  const [notificationPermission, setNotificationPermission] = useState(
+    getNotificationSupport() ? Notification.permission : 'unsupported',
+  )
+  const [isStandaloneMode, setIsStandaloneMode] = useState(isStandaloneApp)
+  const [notificationPromptDismissed, setNotificationPromptDismissed] = useState(false)
+  const temperatureHistoryRef = useRef(new Map())
+  const lastSystemNotificationAtRef = useRef(0)
+  const systemNotificationBootstrappedRef = useRef(false)
+
+  const notificationsSupported = getNotificationSupport()
 
   useEffect(() => {
     let cancelled = false
@@ -294,6 +336,29 @@ export default function App() {
 
     return () => {
       cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    const mediaQuery = window.matchMedia('(display-mode: standalone)')
+    const syncStandalone = () => {
+      setIsStandaloneMode(isStandaloneApp())
+    }
+
+    syncStandalone()
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', syncStandalone)
+      return () => {
+        mediaQuery.removeEventListener('change', syncStandalone)
+      }
+    }
+
+    mediaQuery.addListener(syncStandalone)
+    return () => {
+      mediaQuery.removeListener(syncStandalone)
     }
   }, [])
 
@@ -376,6 +441,110 @@ export default function App() {
     }
   }, [activeView])
 
+  useEffect(() => {
+    if (!notificationsSupported || notificationPermission !== 'granted') return undefined
+    if (!API_BASE) return undefined
+
+    let cancelled = false
+    let inFlight = false
+
+    const pollSystemNotifications = async () => {
+      if (cancelled || inFlight) return
+      inFlight = true
+
+      try {
+        const response = await fetch(`${API_BASE}/live-notifications`, { cache: 'no-store' })
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, 'အပူချိန် notification feed ကို မရရှိနိုင်ပါ။'))
+        }
+
+        const data = await response.json()
+        const nextAlerts = data.alerts || []
+        const previousTemperatures = temperatureHistoryRef.current
+        let strongestChange = null
+
+        nextAlerts.forEach((alert) => {
+          const nextTemperature = alert.weather?.current_temperature_c
+          const previousTemperature = previousTemperatures.get(alert.location)
+
+          if (typeof nextTemperature === 'number' && typeof previousTemperature === 'number') {
+            const delta = Number((nextTemperature - previousTemperature).toFixed(1))
+
+            if (Math.abs(delta) >= SYSTEM_NOTIFICATION_DELTA_C) {
+              if (!strongestChange || Math.abs(delta) > Math.abs(strongestChange.delta)) {
+                strongestChange = { alert, delta }
+              }
+            }
+          }
+
+          if (typeof nextTemperature === 'number') {
+            previousTemperatures.set(alert.location, nextTemperature)
+          }
+        })
+
+        if (!systemNotificationBootstrappedRef.current) {
+          systemNotificationBootstrappedRef.current = true
+          return
+        }
+
+        const now = Date.now()
+        if (!strongestChange || now - lastSystemNotificationAtRef.current < SYSTEM_NOTIFICATION_COOLDOWN_MS) {
+          return
+        }
+
+        const copy = getTemperatureChangeCopy(strongestChange.alert, strongestChange.delta)
+        const delivered = await showSystemNotification(copy.title, copy.body, {
+          tag: `temperature-change-${strongestChange.alert.location}`,
+          data: {
+            path: '/#',
+            view: 'alerts',
+            location: strongestChange.alert.location,
+          },
+        })
+
+        if (delivered) {
+          lastSystemNotificationAtRef.current = now
+        }
+      } catch {
+        return
+      } finally {
+        inFlight = false
+      }
+    }
+
+    void pollSystemNotifications()
+    const intervalId = window.setInterval(() => {
+      void pollSystemNotifications()
+    }, SYSTEM_NOTIFICATION_POLL_MS)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [notificationPermission, notificationsSupported])
+
+  useEffect(() => {
+    if (notificationPermission !== 'granted') return
+    if (!isStandaloneMode) return
+    if (typeof window === 'undefined') return
+
+    const sessionKey = 'climate-monitor-standalone-welcome'
+    if (window.sessionStorage.getItem(sessionKey)) return
+
+    window.sessionStorage.setItem(sessionKey, '1')
+    void showSystemNotification(
+      'Climate Monitor မှ ကြိုဆိုပါသည်',
+      'ဒီ app က မြန်မာတောင်သူအတွက် အပူချိန်ပြောင်းလဲမှုကို ချိုသာလေး သတိပေးပေးနေမယ်နော်။',
+      {
+        tag: 'welcome-climate-monitor',
+        data: {
+          path: '/#',
+          view: 'home',
+        },
+      },
+    )
+  }, [isStandaloneMode, notificationPermission])
+
   const currentAlert = useMemo(() => generatedAlert || selectedAlert, [generatedAlert, selectedAlert])
   const currentMeta = useMemo(() => getRiskMeta(currentAlert), [currentAlert])
   const guideCards = useMemo(() => getGuideCards(currentAlert), [currentAlert])
@@ -423,6 +592,85 @@ export default function App() {
   )
   const currentLocationLabel = currentAlert?.location || form.location || 'Myanmar Live Feed'
   const currentTemperatureLabel = formatValue(currentAlert?.weather?.current_temperature_c, '°C', 1)
+  const notificationStatusLabel = notificationPermission === 'granted'
+    ? 'Temperature notifications are on'
+    : notificationPermission === 'denied'
+      ? 'Notifications are blocked in this browser'
+      : notificationPermission === 'default'
+        ? 'Allow notifications to watch future temperature changes'
+        : 'System notifications are not supported here'
+
+  const showSystemNotification = async (title, body, options = {}) => {
+    if (!notificationsSupported || Notification.permission !== 'granted') return false
+
+    const assetBase = import.meta.env.BASE_URL || '/'
+    const notificationOptions = {
+      body,
+      icon: `${assetBase}icon-192.png?v=${ICON_VERSION}`,
+      badge: `${assetBase}icon-192.png?v=${ICON_VERSION}`,
+      image: `${assetBase}icon-512.png?v=${ICON_VERSION}`,
+      lang: 'my',
+      tag: options.tag,
+      data: options.data,
+      renotify: false,
+      requireInteraction: false,
+    }
+
+    try {
+      const registration = await navigator.serviceWorker.ready
+      if (registration?.showNotification) {
+        await registration.showNotification(title, notificationOptions)
+        return true
+      }
+    } catch {
+      // Fall back to the page-level Notification API if the worker is not ready yet.
+    }
+
+    try {
+      new Notification(title, notificationOptions)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const enableTemperatureNotifications = async () => {
+    if (!notificationsSupported) {
+      setStatus('ဒီ device မှာ system notification ကို မထောက်ပံ့ပါ။')
+      return
+    }
+
+    try {
+      const nextPermission = await Notification.requestPermission()
+      setNotificationPermission(nextPermission)
+
+      if (nextPermission === 'granted') {
+        setNotificationPromptDismissed(false)
+        setStatus('အနာဂတ် အပူချိန်ပြောင်းလဲမှု notification ကို ဖွင့်ပြီးပါပြီ။')
+        await showSystemNotification(
+          'Temperature Watch ဖွင့်ပြီးပါပြီ',
+          'မြန်မာတည်နေရာတွေမှာ အပူချိန်ပြောင်းလဲမှုရှိလာရင် သတိပေးပေးပါမယ်။',
+          {
+            tag: 'notification-enabled',
+            data: {
+              path: '/#',
+              view: 'alerts',
+            },
+          },
+        )
+        return
+      }
+
+      if (nextPermission === 'denied') {
+        setStatus('Notification ကို browser settings ထဲမှာ ပိတ်ထားပါသည်။ Allow ပြန်ဖွင့်ပေးပါ။')
+        return
+      }
+
+      setStatus('Notification ခွင့်ပြုချက်ကို မပေးရသေးပါ။')
+    } catch {
+      setStatus('Notification permission ကို မတောင်းခံနိုင်ပါ။')
+    }
+  }
 
   const updateField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -599,6 +847,43 @@ export default function App() {
         ))}
       </section>
 
+      {notificationsSupported && notificationPermission !== 'granted' && !notificationPromptDismissed ? (
+        <section className="bg-white rounded-3xl p-5 md:p-6 border border-outline/10 shadow-[0_12px_48px_rgba(27,29,14,0.06)]">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-primary-container text-primary flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-3xl">notifications_active</span>
+              </div>
+              <div>
+                <div className="text-xs uppercase font-label text-primary tracking-widest">Cute Notifications</div>
+                <h3 className="mt-1 text-2xl font-headline font-bold">အပူချိန်ပြောင်းလဲမှုကို ကြိုတင်သတိပေးပါမယ်</h3>
+                <p className="mt-2 text-on-surface-variant font-body">
+                  Home Screen app အဖြစ်ဖွင့်ထားချိန်မှာ welcome notification ပို့ပေးပြီး မြန်မာတည်နေရာတွေမှာ အပူချိန်သိသာစွာ ပြောင်းလဲလာရင် system notification နဲ့ ပြသပါမည်။
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                className="rounded-full bg-primary px-6 py-3 text-sm font-headline font-bold text-on-primary shadow-lg hover:shadow-xl transition-all"
+                onClick={() => {
+                  void enableTemperatureNotifications()
+                }}
+                type="button"
+              >
+                Notification Allow လုပ်ရန်
+              </button>
+              <button
+                className="rounded-full border border-outline/10 bg-white px-6 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all"
+                onClick={() => setNotificationPromptDismissed(true)}
+                type="button"
+              >
+                နောက်မှလုပ်မယ်
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <section className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-6">
         <div className="bg-white rounded-3xl p-6 md:p-8 border border-outline/10 shadow-[0_12px_48px_rgba(27,29,14,0.06)]">
           <div className="flex items-center gap-3 mb-4">
@@ -732,6 +1017,39 @@ export default function App() {
             <div className="mt-1 text-sm text-on-surface-variant font-label">
               Source: {currentAlert?.source || 'Open-Meteo live forecast'}
             </div>
+          </div>
+
+          <div className="rounded-2xl bg-white p-4 border border-outline/10">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Notification Watch</div>
+                <div className="mt-2 font-headline font-bold">{notificationStatusLabel}</div>
+                <div className="mt-1 text-sm text-on-surface-variant font-body">
+                  {isStandaloneMode
+                    ? 'Home Screen app mode ဖြင့် ဖွင့်ထားပြီးပါပြီ။'
+                    : 'Home Screen app mode မဟုတ်သေးပါ။ Install လုပ်ထားရင် welcome notification ပိုကောင်းစွာ ပြသနိုင်ပါသည်။'}
+                </div>
+              </div>
+              <div className={`rounded-full px-3 py-1 text-xs font-headline font-bold ${
+                notificationPermission === 'granted'
+                  ? 'bg-primary-container text-on-primary-container'
+                  : 'bg-surface-container-low text-on-surface-variant'
+              }`}>
+                {notificationPermission === 'granted' ? 'On' : 'Off'}
+              </div>
+            </div>
+
+            {notificationPermission !== 'granted' && notificationsSupported ? (
+              <button
+                className="mt-4 rounded-full border border-outline/10 bg-white px-5 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all"
+                onClick={() => {
+                  void enableTemperatureNotifications()
+                }}
+                type="button"
+              >
+                Temperature notifications ကို ဖွင့်ရန်
+              </button>
+            ) : null}
           </div>
         </div>
       </section>
