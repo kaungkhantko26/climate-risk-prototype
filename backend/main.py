@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 from functools import lru_cache
 from typing import List
 from urllib.error import HTTPError, URLError
@@ -35,6 +36,19 @@ MYANMAR_LOCATION_ALIASES = {
     'မကွေး': 'Magway',
     'နေပြည်တော်': 'Nay Pyi Taw',
 }
+WATCHLIST_CACHE_TTL_SECONDS = 2.0
+WATCHLIST_ITEMS = [
+    ('Yangon', 'Rice'),
+    ('Mandalay', 'Maize'),
+    ('Nay Pyi Taw', 'Groundnut'),
+    ('Bago', 'Pulses'),
+    ('Magway', 'Sesame'),
+    ('Pathein', 'Rice'),
+    ('Taunggyi', 'Vegetables'),
+    ('Mawlamyine', 'Groundnut'),
+]
+GEOCODE_CACHE: dict[str, dict] = {}
+WATCHLIST_CACHE: dict[str, object] = {'timestamp': 0.0, 'alerts': []}
 
 
 @lru_cache
@@ -215,6 +229,11 @@ async def fetch_json(url: str, params: dict) -> dict:
 
 async def geocode_location(query: str) -> dict:
     normalized_query = _normalize_myanmar_query(query)
+    cache_key = normalized_query.lower()
+    cached_match = GEOCODE_CACHE.get(cache_key)
+    if cached_match:
+        return cached_match
+
     search_terms = [normalized_query]
     if normalized_query and 'myanmar' not in normalized_query.lower():
         search_terms.append(f'{normalized_query}, Myanmar')
@@ -232,6 +251,7 @@ async def geocode_location(query: str) -> dict:
         )
         results = payload.get('results') or []
         if results:
+            GEOCODE_CACHE[cache_key] = results[0]
             return results[0]
 
     raise HTTPException(status_code=404, detail=f'Could not find a Myanmar location matching "{query}".')
@@ -300,16 +320,19 @@ async def build_live_alert(request: PredictRequest) -> Alert:
     )
 
 
-@app.get('/sample-alerts', response_model=BatchResponse)
-async def sample_alerts():
-    sample_requests = [
-        PredictRequest(location='Hlegu', crop='Rice'),
-        PredictRequest(location='Magway', crop='Sesame'),
-        PredictRequest(location='Bago', crop='Pulses'),
+async def get_watchlist_alerts() -> List[Alert]:
+    cached_alerts = WATCHLIST_CACHE.get('alerts') or []
+    cached_at = float(WATCHLIST_CACHE.get('timestamp') or 0.0)
+    if cached_alerts and time.monotonic() - cached_at < WATCHLIST_CACHE_TTL_SECONDS:
+        return cached_alerts
+
+    watchlist_requests = [
+        PredictRequest(location=location, crop=crop)
+        for location, crop in WATCHLIST_ITEMS
     ]
 
     results = await asyncio.gather(
-        *(build_live_alert(request) for request in sample_requests),
+        *(build_live_alert(request) for request in watchlist_requests),
         return_exceptions=True,
     )
 
@@ -318,9 +341,26 @@ async def sample_alerts():
         if not isinstance(result, Exception):
             alerts.append(result)
 
-    if not alerts:
-        raise HTTPException(status_code=502, detail='Could not load live Myanmar watchlist from weather services.')
+    if alerts:
+        WATCHLIST_CACHE['timestamp'] = time.monotonic()
+        WATCHLIST_CACHE['alerts'] = alerts
+        return alerts
 
+    if cached_alerts:
+        return cached_alerts
+
+    raise HTTPException(status_code=502, detail='Could not load live Myanmar watchlist from weather services.')
+
+
+@app.get('/sample-alerts', response_model=BatchResponse)
+async def sample_alerts():
+    alerts = await get_watchlist_alerts()
+    return {'alerts': alerts}
+
+
+@app.get('/live-notifications', response_model=BatchResponse)
+async def live_notifications():
+    alerts = await get_watchlist_alerts()
     return {'alerts': alerts}
 
 

@@ -215,6 +215,15 @@ const getMapLinks = (alert) => {
   }
 }
 
+const pickMatchingAlert = (currentAlert, nextAlerts) => {
+  if (!nextAlerts.length) return null
+  if (!currentAlert) return nextAlerts[0]
+
+  return nextAlerts.find(
+    (alert) => alert.location === currentAlert.location && alert.crop === currentAlert.crop,
+  ) || nextAlerts[0]
+}
+
 export default function App() {
   const [alerts, setAlerts] = useState([])
   const [selectedAlert, setSelectedAlert] = useState(null)
@@ -224,6 +233,8 @@ export default function App() {
   const [activeView, setActiveView] = useState('home')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLocating, setIsLocating] = useState(false)
+  const [notificationsError, setNotificationsError] = useState('')
+  const [lastFeedRefresh, setLastFeedRefresh] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -238,21 +249,24 @@ export default function App() {
       }
 
       try {
-        const response = await fetch(`${API_BASE}/sample-alerts`)
+        const response = await fetch(`${API_BASE}/live-notifications`, { cache: 'no-store' })
         if (!response.ok) {
-          throw new Error(await readErrorMessage(response, 'မြန်မာ watchlist ကို မရရှိနိုင်ပါ။'))
+          throw new Error(await readErrorMessage(response, 'မြန်မာ live notification feed ကို မရရှိနိုင်ပါ။'))
         }
 
         const data = await response.json()
         const nextAlerts = data.alerts || []
         if (cancelled) return
         setAlerts(nextAlerts)
-        setSelectedAlert(nextAlerts[0] || null)
+        setSelectedAlert((prev) => pickMatchingAlert(prev, nextAlerts))
+        setNotificationsError('')
+        setLastFeedRefresh(new Date().toISOString())
         setStatus('Live Myanmar weather detection ချိတ်ဆက်ပြီးပါပြီ။')
       } catch (error) {
         if (cancelled) return
         setAlerts([])
         setSelectedAlert(null)
+        setNotificationsError(error.message || 'Live notification feed ကို မရရှိနိုင်ပါ။')
         setStatus(error.message || 'Live weather data ကို မရရှိနိုင်ပါ။')
       }
     }
@@ -263,6 +277,48 @@ export default function App() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (activeView !== 'alerts' || !API_BASE) return
+
+    let cancelled = false
+    let inFlight = false
+
+    const pollNotifications = async () => {
+      if (inFlight || cancelled) return
+      inFlight = true
+
+      try {
+        const response = await fetch(`${API_BASE}/live-notifications`, { cache: 'no-store' })
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, 'Real-time notifications ကို မရရှိနိုင်ပါ။'))
+        }
+
+        const data = await response.json()
+        const nextAlerts = data.alerts || []
+        if (cancelled) return
+        setAlerts(nextAlerts)
+        setSelectedAlert((prev) => pickMatchingAlert(prev, nextAlerts))
+        setNotificationsError('')
+        setLastFeedRefresh(new Date().toISOString())
+      } catch (error) {
+        if (cancelled) return
+        setNotificationsError(error.message || 'Real-time notifications ကို မရရှိနိုင်ပါ။')
+      } finally {
+        inFlight = false
+      }
+    }
+
+    void pollNotifications()
+    const intervalId = window.setInterval(() => {
+      void pollNotifications()
+    }, 2000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [activeView])
 
   const currentAlert = useMemo(() => generatedAlert || selectedAlert, [generatedAlert, selectedAlert])
   const currentMeta = useMemo(() => getRiskMeta(currentAlert), [currentAlert])
@@ -275,6 +331,19 @@ export default function App() {
       .filter((alert) => `${alert.location}-${alert.crop}-${alert.risk}` !== currentKey)
       .slice(0, 4)
   }, [alerts, currentAlert])
+
+  const temperatureNotifications = useMemo(
+    () => [...alerts].sort(
+      (left, right) => (right.weather?.current_temperature_c || 0) - (left.weather?.current_temperature_c || 0),
+    ),
+    [alerts],
+  )
+  const activeNotification = useMemo(
+    () => pickMatchingAlert(selectedAlert, temperatureNotifications),
+    [selectedAlert, temperatureNotifications],
+  )
+  const hottestNotification = temperatureNotifications[0] || null
+  const coolestNotification = temperatureNotifications[temperatureNotifications.length - 1] || null
 
   const weatherCards = currentAlert?.weather
     ? [
@@ -659,70 +728,125 @@ export default function App() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="font-label text-primary text-sm font-bold uppercase tracking-widest">Notifications</p>
-            <h3 className="text-3xl font-headline font-extrabold">သတိပေးချက်များ</h3>
-            <p className="text-on-surface-variant font-body mt-2">မြန်မာနိုင်ငံအတွင်း ရာသီဥတုအန္တရာယ်အလိုက် အချက်ပေးများကို တစ်နေရာတည်းတွင် စုစည်းထားပါသည်။</p>
+            <h3 className="text-3xl font-headline font-extrabold">Real-Time Temperature Feed</h3>
+            <p className="text-on-surface-variant font-body mt-2">မြန်မာနိုင်ငံအနှံ့ အပူချိန် notification များကို ၂ စက္ကန့်တစ်ကြိမ် live refresh လုပ်ပေးနေပါသည်။</p>
           </div>
-          <div className="rounded-2xl bg-surface-container px-4 py-3 border border-outline/10">
-            <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Live Count</div>
-            <div className="mt-1 text-3xl font-headline font-extrabold">{alerts.length}</div>
+          <div className="rounded-2xl bg-surface-container px-4 py-3 border border-outline/10 min-w-[170px]">
+            <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Live Refresh</div>
+            <div className="mt-1 flex items-center gap-2 text-2xl font-headline font-extrabold">
+              <span className="inline-block h-3 w-3 rounded-full bg-primary animate-pulse"></span>
+              2s
+            </div>
           </div>
         </div>
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6">
         <div className="space-y-4">
-          {alerts.length > 0 ? (
-            alerts.map((alert) => (
+          {notificationsError ? (
+            <div className="bg-error-container text-on-error-container rounded-3xl p-5 border border-error/10">
+              {notificationsError}
+            </div>
+          ) : null}
+
+          {temperatureNotifications.length > 0 ? (
+            temperatureNotifications.map((alert) => (
               <button
                 key={`${alert.location}-${alert.crop}-${alert.risk}`}
                 className="w-full text-left bg-surface-container-low rounded-3xl p-5 border border-outline/5 hover:bg-white transition-all"
                 onClick={() => focusAlert(alert, 'alerts')}
                 type="button"
               >
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-3 flex-wrap">
-                      <span className={`px-3 py-1 rounded-full text-xs font-label font-bold uppercase ${getRiskMeta(alert).badgeClassName}`}>
-                        {getRiskMeta(alert).badge}
+                      <span className="px-3 py-1 rounded-full text-xs font-label font-bold uppercase bg-primary-container text-on-primary-container">
+                        Temp Live
                       </span>
-                      <span className="text-xs text-on-surface-variant font-label">{formatForecastTime(alert.weather?.forecast_time)}</span>
+                      <span className="text-xs text-on-surface-variant font-label">
+                        Updated {formatForecastTime(lastFeedRefresh || alert.weather?.forecast_time)}
+                      </span>
                     </div>
                     <h4 className="mt-2 font-headline text-xl font-bold text-on-surface">{alert.location}</h4>
-                    <p className="text-sm text-on-surface-variant font-body mt-1">{alert.advice}</p>
+                    <p className="text-sm text-on-surface-variant font-body mt-1">
+                      Current temperature is {formatValue(alert.weather?.current_temperature_c, '°C', 1)} with humidity {formatValue(alert.weather?.current_humidity_pct, '%')} and rain outlook {formatValue(alert.weather?.rainfall_mm_next_3_days, ' mm', 1)}.
+                    </p>
                   </div>
-                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium ${badgeClass(alert.risk)}`}>
-                    {alert.risk}
-                  </span>
+                  <div className="rounded-2xl bg-white px-4 py-3 border border-outline/10 min-w-[130px] text-center">
+                    <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Current Temp</div>
+                    <div className="mt-1 text-3xl font-headline font-extrabold text-primary">
+                      {formatValue(alert.weather?.current_temperature_c, '°C', 1)}
+                    </div>
+                  </div>
                 </div>
               </button>
             ))
           ) : (
             <div className="bg-surface-container-low rounded-3xl p-6 text-on-surface-variant">
-              Live alerts မရရှိသေးပါ။
+              Live temperature notifications မရရှိသေးပါ။
             </div>
           )}
         </div>
 
         <div className="bg-white rounded-3xl p-6 border border-outline/10 space-y-4">
-          <h4 className="font-headline text-xl font-bold">ရွေးချယ်ထားသော သတိပေးချက်</h4>
-          {currentAlert ? (
+          <h4 className="font-headline text-xl font-bold">Feed Summary</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-surface-container-low p-4">
+              <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Locations</div>
+              <div className="mt-1 text-3xl font-headline font-extrabold">{temperatureNotifications.length}</div>
+            </div>
+            <div className="rounded-2xl bg-surface-container-low p-4">
+              <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Last Sync</div>
+              <div className="mt-1 text-sm font-headline font-bold">{formatForecastTime(lastFeedRefresh)}</div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-surface-container-low p-4 border border-outline/10">
+            <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Hottest Now</div>
+            <div className="mt-2 font-headline font-bold text-lg">{hottestNotification?.location || 'Unavailable'}</div>
+            <div className="text-on-surface-variant font-body mt-1">
+              {hottestNotification ? formatValue(hottestNotification.weather?.current_temperature_c, '°C', 1) : 'Unavailable'}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-surface-container-low p-4 border border-outline/10">
+            <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Coolest Now</div>
+            <div className="mt-2 font-headline font-bold text-lg">{coolestNotification?.location || 'Unavailable'}</div>
+            <div className="text-on-surface-variant font-body mt-1">
+              {coolestNotification ? formatValue(coolestNotification.weather?.current_temperature_c, '°C', 1) : 'Unavailable'}
+            </div>
+          </div>
+
+          {activeNotification ? (
             <>
-              <div className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium ${badgeClass(currentAlert.risk)}`}>
-                {currentAlert.risk}
+              <div className="inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium bg-primary-container text-on-primary-container border-primary/10">
+                Selected Temperature Notification
               </div>
-              <div className="text-2xl font-headline font-extrabold">{currentAlert.location}</div>
-              <div className="text-on-surface-variant font-body">{currentAlert.sms}</div>
+              <div className="text-2xl font-headline font-extrabold">{activeNotification.location}</div>
+              <div className="text-on-surface-variant font-body">
+                {formatValue(activeNotification.weather?.current_temperature_c, '°C', 1)} current temperature, {formatValue(activeNotification.weather?.current_humidity_pct, '%')} humidity, and {formatValue(activeNotification.weather?.rainfall_mm_next_3_days, ' mm', 1)} rain in the next 3 days.
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                {weatherCards.map((card) => (
-                  <div key={card.label} className="rounded-2xl bg-surface-container-low p-4">
-                    <div className="text-xs font-label text-on-surface-variant">{card.label}</div>
-                    <div className="mt-1 font-headline font-bold">{card.value}</div>
-                  </div>
-                ))}
+                <div className="rounded-2xl bg-surface-container-low p-4">
+                  <div className="text-xs font-label text-on-surface-variant">Humidity</div>
+                  <div className="mt-1 font-headline font-bold">{formatValue(activeNotification.weather?.current_humidity_pct, '%')}</div>
+                </div>
+                <div className="rounded-2xl bg-surface-container-low p-4">
+                  <div className="text-xs font-label text-on-surface-variant">Rain Outlook</div>
+                  <div className="mt-1 font-headline font-bold">{formatValue(activeNotification.weather?.rainfall_mm_next_3_days, ' mm', 1)}</div>
+                </div>
+                <div className="rounded-2xl bg-surface-container-low p-4">
+                  <div className="text-xs font-label text-on-surface-variant">Coordinates</div>
+                  <div className="mt-1 font-headline font-bold">{formatCoordinates(activeNotification.weather)}</div>
+                </div>
+                <div className="rounded-2xl bg-surface-container-low p-4">
+                  <div className="text-xs font-label text-on-surface-variant">Forecast Time</div>
+                  <div className="mt-1 font-headline font-bold">{formatForecastTime(activeNotification.weather?.forecast_time)}</div>
+                </div>
               </div>
             </>
           ) : (
-            <div className="text-on-surface-variant">သတိပေးချက်တစ်ခုကို ရွေးပါ။</div>
+            <div className="text-on-surface-variant">Live temperature notification တစ်ခုကို ရွေးပါ။</div>
           )}
         </div>
       </section>
