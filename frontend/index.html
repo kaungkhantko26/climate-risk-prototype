@@ -1,12 +1,74 @@
 <!doctype html>
-<html lang="en">
+<html class="light" lang="my">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Climate Risk Prediction System</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Climate Monitor Myanmar</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=Noto+Serif:wght@400;700&family=Padauk:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              primary: '#2D6A4F',
+              'on-primary': '#ffffff',
+              'primary-container': '#b1f0ce',
+              'on-primary-container': '#002114',
+              secondary: '#7d5800',
+              'on-secondary': '#ffffff',
+              'secondary-container': '#ffb702',
+              'on-secondary-container': '#6b4b00',
+              tertiary: '#713638',
+              'on-tertiary': '#ffffff',
+              error: '#ba1a1a',
+              'on-error': '#ffffff',
+              'error-container': '#ffdad6',
+              'on-error-container': '#93000a',
+              background: '#fbfbe2',
+              'on-background': '#1b1d0e',
+              surface: '#fbfbe2',
+              'on-surface': '#1b1d0e',
+              'surface-variant': '#e4e4cc',
+              'on-surface-variant': '#5d655f',
+              outline: '#707973',
+              'surface-container-low': '#f5f5dc',
+              'surface-container': '#efefd7',
+              'surface-container-high': '#eaead1',
+            },
+            fontFamily: {
+              headline: ['Be Vietnam Pro', 'Padauk', 'sans-serif'],
+              body: ['Noto Serif', 'Padauk', 'serif'],
+              label: ['Be Vietnam Pro', 'Padauk', 'sans-serif'],
+            },
+            borderRadius: {
+              DEFAULT: '0.5rem',
+              lg: '1rem',
+              xl: '1.5rem',
+              '2xl': '2rem',
+              '3xl': '2.5rem',
+              full: '9999px',
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      body { font-family: 'Noto Serif', 'Padauk', serif; }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+    </style>
   </head>
-  <body class="bg-slate-50">
+  <body class="bg-background text-on-surface min-h-screen pb-24 md:pb-0 md:pl-72">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
