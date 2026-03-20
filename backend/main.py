@@ -1,9 +1,12 @@
 import asyncio
+import json
 import os
 from functools import lru_cache
 from typing import List
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
-import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -183,16 +186,43 @@ def health():
     return {'status': 'ok'}
 
 
-async def geocode_location(client: httpx.AsyncClient, query: str) -> dict:
+def _fetch_json_blocking(url: str, params: dict) -> dict:
+    query_string = urlencode(params)
+    request = Request(
+        f'{url}?{query_string}',
+        headers={
+            'User-Agent': 'climate-risk-prototype/1.0',
+            'Accept': 'application/json',
+        },
+    )
+    with urlopen(request, timeout=12) as response:
+        return json.loads(response.read().decode('utf-8'))
+
+
+async def fetch_json(url: str, params: dict) -> dict:
+    try:
+        return await asyncio.to_thread(_fetch_json_blocking, url, params)
+    except HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f'Weather provider returned HTTP {exc.code}.') from exc
+    except URLError as exc:
+        reason = getattr(exc, 'reason', exc)
+        raise HTTPException(status_code=502, detail=f'Weather provider connection failed: {reason}') from exc
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail='Weather provider timed out.') from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f'Weather provider request failed: {exc}') from exc
+
+
+async def geocode_location(query: str) -> dict:
     normalized_query = _normalize_myanmar_query(query)
     search_terms = [normalized_query]
     if normalized_query and 'myanmar' not in normalized_query.lower():
         search_terms.append(f'{normalized_query}, Myanmar')
 
     for search_term in search_terms:
-        response = await client.get(
+        payload = await fetch_json(
             GEOCODING_API_URL,
-            params={
+            {
                 'name': search_term,
                 'count': 5,
                 'language': 'en',
@@ -200,8 +230,6 @@ async def geocode_location(client: httpx.AsyncClient, query: str) -> dict:
                 'countryCode': 'MM',
             },
         )
-        response.raise_for_status()
-        payload = response.json()
         results = payload.get('results') or []
         if results:
             return results[0]
@@ -209,10 +237,10 @@ async def geocode_location(client: httpx.AsyncClient, query: str) -> dict:
     raise HTTPException(status_code=404, detail=f'Could not find a Myanmar location matching "{query}".')
 
 
-async def fetch_weather_snapshot(client: httpx.AsyncClient, latitude: float, longitude: float) -> WeatherSnapshot:
-    response = await client.get(
+async def fetch_weather_snapshot(latitude: float, longitude: float) -> WeatherSnapshot:
+    payload = await fetch_json(
         FORECAST_API_URL,
-        params={
+        {
             'latitude': latitude,
             'longitude': longitude,
             'timezone': 'auto',
@@ -222,8 +250,6 @@ async def fetch_weather_snapshot(client: httpx.AsyncClient, latitude: float, lon
             'hourly': 'soil_moisture_0_to_1cm',
         },
     )
-    response.raise_for_status()
-    payload = response.json()
 
     current = payload.get('current') or {}
     daily = payload.get('daily') or {}
@@ -254,19 +280,14 @@ async def fetch_weather_snapshot(client: httpx.AsyncClient, latitude: float, lon
     )
 
 
-async def build_live_alert(client: httpx.AsyncClient, request: PredictRequest) -> Alert:
+async def build_live_alert(request: PredictRequest) -> Alert:
     if request.latitude is not None and request.longitude is not None:
         resolved_location = _normalize_myanmar_query(request.location)
-        weather = await fetch_weather_snapshot(
-            client,
-            latitude=request.latitude,
-            longitude=request.longitude,
-        )
+        weather = await fetch_weather_snapshot(latitude=request.latitude, longitude=request.longitude)
     else:
-        location_match = await geocode_location(client, request.location)
+        location_match = await geocode_location(request.location)
         resolved_location = _format_location_name(location_match)
         weather = await fetch_weather_snapshot(
-            client,
             latitude=float(location_match['latitude']),
             longitude=float(location_match['longitude']),
         )
@@ -287,11 +308,10 @@ async def sample_alerts():
         PredictRequest(location='Bago', crop='Pulses'),
     ]
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        results = await asyncio.gather(
-            *(build_live_alert(client, request) for request in sample_requests),
-            return_exceptions=True,
-        )
+    results = await asyncio.gather(
+        *(build_live_alert(request) for request in sample_requests),
+        return_exceptions=True,
+    )
 
     alerts = []
     for result in results:
@@ -306,10 +326,4 @@ async def sample_alerts():
 
 @app.post('/predict', response_model=Alert)
 async def predict(request: PredictRequest):
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            return await build_live_alert(client, request)
-    except HTTPException:
-        raise
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail='Failed to fetch live weather data.') from exc
+    return await build_live_alert(request)
