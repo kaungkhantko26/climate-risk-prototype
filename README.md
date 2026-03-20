@@ -58,6 +58,8 @@ The frontend will call `http://127.0.0.1:8000` automatically in local developmen
 
 This repo includes a GitHub Actions workflow at `.github/workflows/deploy.yml` that deploys the `frontend/` app to GitHub Pages on every push to `main`.
 
+The production deploy is configured for the custom domain `climate-risk-prototype.kaungkhantko.top`.
+
 If you only deploy the frontend, the site falls back to built-in demo alerts and prediction logic so the Pages version still works without a live backend.
 
 If you deploy the FastAPI backend somewhere else, add a GitHub repository variable named `VITE_API_BASE_URL` with your backend URL and the Pages build will use it.
