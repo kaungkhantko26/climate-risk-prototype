@@ -411,11 +411,6 @@ export default function App() {
       ]
     : []
 
-  const accountSyncLabel = alerts.length > 0 ? 'Live Sync On' : 'Sync Pending'
-  const accountSyncClass = alerts.length > 0
-    ? 'bg-primary-container text-on-primary-container'
-    : 'bg-secondary-container text-on-secondary-container'
-
   const activeViewMeta = useMemo(
     () => views.find((view) => view.id === activeView) || views[0],
     [activeView],
@@ -1204,43 +1199,6 @@ export default function App() {
           })}
         </nav>
 
-        <div className="p-6 border-t border-outline/10 space-y-4">
-          <div className="rounded-3xl bg-surface-container p-4 border border-outline/10 shadow-[0_8px_28px_rgba(27,29,14,0.06)]">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center text-primary shrink-0">
-                <span className="material-symbols-outlined">person</span>
-              </div>
-              <div className="overflow-hidden">
-                <p className="text-sm font-bold font-headline truncate">မောင်သက်ပိုင်</p>
-                <p className="text-xs text-on-surface-variant font-label truncate">ဟလဲဂူမြို့နယ် • စပါး၊ နှမ်း စိုက်တောင်သူ</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mt-4">
-              <div className="rounded-2xl bg-surface-container-high px-3 py-3">
-                <div className="text-[11px] font-label text-on-surface-variant uppercase tracking-wide">လယ်ယာ</div>
-                <div className="mt-1 font-headline font-bold text-on-surface">12 ဧက</div>
-              </div>
-              <div className="rounded-2xl bg-surface-container-high px-3 py-3">
-                <div className="text-[11px] font-label text-on-surface-variant uppercase tracking-wide">အဓိကသီးနှံ</div>
-                <div className="mt-1 font-headline font-bold text-on-surface">{currentAlert?.crop || 'Rice'}</div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className={`px-3 py-1 rounded-full text-[11px] font-bold font-label ${accountSyncClass}`}>
-                {accountSyncLabel}
-              </span>
-              <span className="px-3 py-1 rounded-full text-[11px] font-bold font-label bg-primary/10 text-primary">
-                Last Check: {currentAlert?.location || 'Myanmar'}
-              </span>
-            </div>
-
-            <button className="mt-4 w-full rounded-2xl border border-outline/10 bg-white px-4 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all">
-              အကောင့်ပြင်ဆင်ရန်
-            </button>
-          </div>
-        </div>
       </aside>
 
       <header className="bg-surface/80 backdrop-blur-lg border-b border-outline/10 fixed top-0 left-0 md:left-72 right-0 z-50">
