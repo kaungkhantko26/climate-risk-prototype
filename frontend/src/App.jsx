@@ -227,6 +227,8 @@ const pickMatchingAlert = (currentAlert, nextAlerts) => {
 export default function App() {
   const [alerts, setAlerts] = useState([])
   const [selectedAlert, setSelectedAlert] = useState(null)
+  const [notifications, setNotifications] = useState([])
+  const [selectedNotification, setSelectedNotification] = useState(null)
   const [generatedAlert, setGeneratedAlert] = useState(null)
   const [form, setForm] = useState(defaultForm)
   const [status, setStatus] = useState('မြန်မာနိုင်ငံ ရာသီဥတုဒေတာများကို ချိတ်ဆက်နေပါသည်...')
@@ -249,9 +251,9 @@ export default function App() {
       }
 
       try {
-        const response = await fetch(`${API_BASE}/live-notifications`, { cache: 'no-store' })
+        const response = await fetch(`${API_BASE}/sample-alerts`, { cache: 'no-store' })
         if (!response.ok) {
-          throw new Error(await readErrorMessage(response, 'မြန်မာ live notification feed ကို မရရှိနိုင်ပါ။'))
+          throw new Error(await readErrorMessage(response, 'မြန်မာ watchlist ကို မရရှိနိုင်ပါ။'))
         }
 
         const data = await response.json()
@@ -259,14 +261,11 @@ export default function App() {
         if (cancelled) return
         setAlerts(nextAlerts)
         setSelectedAlert((prev) => pickMatchingAlert(prev, nextAlerts))
-        setNotificationsError('')
-        setLastFeedRefresh(new Date().toISOString())
         setStatus('Live Myanmar weather detection ချိတ်ဆက်ပြီးပါပြီ။')
       } catch (error) {
         if (cancelled) return
         setAlerts([])
         setSelectedAlert(null)
-        setNotificationsError(error.message || 'Live notification feed ကို မရရှိနိုင်ပါ။')
         setStatus(error.message || 'Live weather data ကို မရရှိနိုင်ပါ။')
       }
     }
@@ -297,8 +296,8 @@ export default function App() {
         const data = await response.json()
         const nextAlerts = data.alerts || []
         if (cancelled) return
-        setAlerts(nextAlerts)
-        setSelectedAlert((prev) => pickMatchingAlert(prev, nextAlerts))
+        setNotifications(nextAlerts)
+        setSelectedNotification((prev) => pickMatchingAlert(prev, nextAlerts))
         setNotificationsError('')
         setLastFeedRefresh(new Date().toISOString())
       } catch (error) {
@@ -333,14 +332,14 @@ export default function App() {
   }, [alerts, currentAlert])
 
   const temperatureNotifications = useMemo(
-    () => [...alerts].sort(
+    () => [...notifications].sort(
       (left, right) => (right.weather?.current_temperature_c || 0) - (left.weather?.current_temperature_c || 0),
     ),
-    [alerts],
+    [notifications],
   )
   const activeNotification = useMemo(
-    () => pickMatchingAlert(selectedAlert, temperatureNotifications),
-    [selectedAlert, temperatureNotifications],
+    () => pickMatchingAlert(selectedNotification, temperatureNotifications),
+    [selectedNotification, temperatureNotifications],
   )
   const hottestNotification = temperatureNotifications[0] || null
   const coolestNotification = temperatureNotifications[temperatureNotifications.length - 1] || null
@@ -754,7 +753,7 @@ export default function App() {
               <button
                 key={`${alert.location}-${alert.crop}-${alert.risk}`}
                 className="w-full text-left bg-surface-container-low rounded-3xl p-5 border border-outline/5 hover:bg-white transition-all"
-                onClick={() => focusAlert(alert, 'alerts')}
+                onClick={() => setSelectedNotification(alert)}
                 type="button"
               >
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

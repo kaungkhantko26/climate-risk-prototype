@@ -36,16 +36,80 @@ MYANMAR_LOCATION_ALIASES = {
     'မကွေး': 'Magway',
     'နေပြည်တော်': 'Nay Pyi Taw',
 }
-WATCHLIST_CACHE_TTL_SECONDS = 2.0
+NOTIFICATION_CACHE_TTL_SECONDS = 300.0
+SAMPLE_ALERT_ITEMS = [
+    {'label': 'Hlegu', 'query': 'Hlegu', 'region': 'Yangon Region', 'crop': 'Rice'},
+    {'label': 'Magway', 'query': 'Magway', 'region': 'Magway Region', 'crop': 'Sesame'},
+    {'label': 'Bago', 'query': 'Bago', 'region': 'Bago Region', 'crop': 'Pulses'},
+]
 WATCHLIST_ITEMS = [
-    ('Yangon', 'Rice'),
-    ('Mandalay', 'Maize'),
-    ('Nay Pyi Taw', 'Groundnut'),
-    ('Bago', 'Pulses'),
-    ('Magway', 'Sesame'),
-    ('Pathein', 'Rice'),
-    ('Taunggyi', 'Vegetables'),
-    ('Mawlamyine', 'Groundnut'),
+    {'label': 'Yangon (East)', 'query': 'East Yangon District', 'region': 'Yangon Region', 'crop': 'Rice'},
+    {'label': 'Yangon (West)', 'query': 'West Yangon District', 'region': 'Yangon Region', 'crop': 'Rice'},
+    {'label': 'Yangon (North)', 'query': 'North Yangon District', 'region': 'Yangon Region', 'crop': 'Rice'},
+    {'label': 'Yangon (South)', 'query': 'South Yangon District', 'region': 'Yangon Region', 'crop': 'Rice'},
+    {'label': 'Mandalay', 'query': 'Mandalay', 'region': 'Mandalay Region', 'crop': 'Maize'},
+    {'label': 'Kyaukse', 'query': 'Kyaukse', 'region': 'Mandalay Region', 'crop': 'Groundnut'},
+    {'label': 'Meiktila', 'query': 'Meiktila', 'region': 'Mandalay Region', 'crop': 'Sesame'},
+    {'label': 'Myingyan', 'query': 'Myingyan', 'region': 'Mandalay Region', 'crop': 'Pulses'},
+    {'label': 'Nyaung-U', 'query': 'Nyaung-U', 'region': 'Mandalay Region', 'crop': 'Groundnut'},
+    {'label': 'Yamethin', 'query': 'Yamethin', 'region': 'Mandalay Region', 'crop': 'Sesame'},
+    {'label': 'Pyin Oo Lwin', 'query': 'Pyin Oo Lwin', 'region': 'Mandalay Region', 'crop': 'Vegetables'},
+    {'label': 'Bago', 'query': 'Bago', 'region': 'Bago Region', 'crop': 'Rice'},
+    {'label': 'Taungoo', 'query': 'Taungoo', 'region': 'Bago Region', 'crop': 'Rice'},
+    {'label': 'Pyay', 'query': 'Pyay', 'region': 'Bago Region', 'crop': 'Pulses'},
+    {'label': 'Tharrawaddy', 'query': 'Tharrawaddy', 'region': 'Bago Region', 'crop': 'Rice'},
+    {'label': 'Pathein', 'query': 'Pathein', 'region': 'Ayeyarwady Region', 'crop': 'Rice'},
+    {'label': 'Myaungmya', 'query': 'Myaungmya', 'region': 'Ayeyarwady Region', 'crop': 'Rice'},
+    {'label': 'Hinthada', 'query': 'Hinthada', 'region': 'Ayeyarwady Region', 'crop': 'Rice'},
+    {'label': 'Maubin', 'query': 'Maubin', 'region': 'Ayeyarwady Region', 'crop': 'Rice'},
+    {'label': 'Pyapon', 'query': 'Pyapon', 'region': 'Ayeyarwady Region', 'crop': 'Rice'},
+    {'label': 'Labutta', 'query': 'Labutta', 'region': 'Ayeyarwady Region', 'crop': 'Rice'},
+    {'label': 'Magway', 'query': 'Magway', 'region': 'Magway Region', 'crop': 'Sesame'},
+    {'label': 'Minbu', 'query': 'Minbu', 'region': 'Magway Region', 'crop': 'Sesame'},
+    {'label': 'Thayet', 'query': 'Thayet', 'region': 'Magway Region', 'crop': 'Groundnut'},
+    {'label': 'Pakokku', 'query': 'Pakokku', 'region': 'Magway Region', 'crop': 'Groundnut'},
+    {'label': 'Gangaw', 'query': 'Gangaw', 'region': 'Magway Region', 'crop': 'Pulses'},
+    {'label': 'Sagaing', 'query': 'Sagaing', 'region': 'Sagaing Region', 'crop': 'Pulses'},
+    {'label': 'Shwebo', 'query': 'Shwebo', 'region': 'Sagaing Region', 'crop': 'Rice'},
+    {'label': 'Monywa', 'query': 'Monywa', 'region': 'Sagaing Region', 'crop': 'Pulses'},
+    {'label': 'Katha', 'query': 'Katha', 'region': 'Sagaing Region', 'crop': 'Rice'},
+    {'label': 'Kale', 'query': 'Kale', 'region': 'Sagaing Region', 'crop': 'Maize'},
+    {'label': 'Tamu', 'query': 'Tamu', 'region': 'Sagaing Region', 'crop': 'Maize'},
+    {'label': 'Mawlaik', 'query': 'Mawlaik', 'region': 'Sagaing Region', 'crop': 'Rice'},
+    {'label': 'Hkamti', 'query': 'Hkamti', 'region': 'Sagaing Region', 'crop': 'Rice'},
+    {'label': 'Dawei', 'query': 'Dawei', 'region': 'Tanintharyi Region', 'crop': 'Rubber'},
+    {'label': 'Myeik', 'query': 'Myeik', 'region': 'Tanintharyi Region', 'crop': 'Rubber'},
+    {'label': 'Kawthaung', 'query': 'Kawthaung', 'region': 'Tanintharyi Region', 'crop': 'Rubber'},
+    {'label': 'Myitkyina', 'query': 'Myitkyina', 'region': 'Kachin State', 'crop': 'Rice'},
+    {'label': 'Bhamo', 'query': 'Bhamo', 'region': 'Kachin State', 'crop': 'Rice'},
+    {'label': 'Mohnyin', 'query': 'Mohnyin', 'region': 'Kachin State', 'crop': 'Rice'},
+    {'label': 'Putao', 'query': 'Putao', 'region': 'Kachin State', 'crop': 'Rice'},
+    {'label': 'Loikaw', 'query': 'Loikaw', 'region': 'Kayah State', 'crop': 'Maize'},
+    {'label': 'Bawlakhe', 'query': 'Bawlakhe', 'region': 'Kayah State', 'crop': 'Maize'},
+    {'label': 'Hpa-An', 'query': 'Hpa-An', 'region': 'Kayin State', 'crop': 'Rice'},
+    {'label': 'Myawaddy', 'query': 'Myawaddy', 'region': 'Kayin State', 'crop': 'Maize'},
+    {'label': 'Kawkareik', 'query': 'Kawkareik', 'region': 'Kayin State', 'crop': 'Rice'},
+    {'label': 'Hakha', 'query': 'Hakha', 'region': 'Chin State', 'crop': 'Maize'},
+    {'label': 'Falam', 'query': 'Falam', 'region': 'Chin State', 'crop': 'Maize'},
+    {'label': 'Mindat', 'query': 'Mindat', 'region': 'Chin State', 'crop': 'Maize'},
+    {'label': 'Matupi', 'query': 'Matupi', 'region': 'Chin State', 'crop': 'Maize'},
+    {'label': 'Mawlamyine', 'query': 'Mawlamyine', 'region': 'Mon State', 'crop': 'Rubber'},
+    {'label': 'Thaton', 'query': 'Thaton', 'region': 'Mon State', 'crop': 'Rice'},
+    {'label': 'Sittwe', 'query': 'Sittwe', 'region': 'Rakhine State', 'crop': 'Rice'},
+    {'label': 'Thandwe', 'query': 'Thandwe', 'region': 'Rakhine State', 'crop': 'Rice'},
+    {'label': 'Kyaukpyu', 'query': 'Kyaukpyu', 'region': 'Rakhine State', 'crop': 'Rice'},
+    {'label': 'Maungdaw', 'query': 'Maungdaw', 'region': 'Rakhine State', 'crop': 'Rice'},
+    {'label': 'Mrauk-U', 'query': 'Mrauk-U', 'region': 'Rakhine State', 'crop': 'Rice'},
+    {'label': 'Taunggyi', 'query': 'Taunggyi', 'region': 'Shan State', 'crop': 'Vegetables'},
+    {'label': 'Lashio', 'query': 'Lashio', 'region': 'Shan State', 'crop': 'Maize'},
+    {'label': 'Kengtung', 'query': 'Kengtung', 'region': 'Shan State', 'crop': 'Rice'},
+    {'label': 'Muse', 'query': 'Muse', 'region': 'Shan State', 'crop': 'Rice'},
+    {'label': 'Loilen', 'query': 'Loilen', 'region': 'Shan State', 'crop': 'Rice'},
+    {'label': 'Langkho', 'query': 'Langkho', 'region': 'Shan State', 'crop': 'Rice'},
+    {'label': 'Mong Hsat', 'query': 'Mong Hsat', 'region': 'Shan State', 'crop': 'Rice'},
+    {'label': 'Mong Ton', 'query': 'Mong Ton', 'region': 'Shan State', 'crop': 'Rice'},
+    {'label': 'Tachileik', 'query': 'Tachileik', 'region': 'Shan State', 'crop': 'Rice'},
+    {'label': 'Kyaukme', 'query': 'Kyaukme', 'region': 'Shan State', 'crop': 'Rice'},
 ]
 GEOCODE_CACHE: dict[str, dict] = {}
 WATCHLIST_CACHE: dict[str, object] = {'timestamp': 0.0, 'alerts': []}
@@ -320,26 +384,39 @@ async def build_live_alert(request: PredictRequest) -> Alert:
     )
 
 
+async def build_watchlist_alert(item: dict[str, str]) -> Alert | None:
+    try:
+        alert = await build_live_alert(
+            PredictRequest(location=item['query'], crop=item['crop']),
+        )
+    except HTTPException:
+        return None
+
+    display_location = f"{item['label']}, {item['region']}"
+    return Alert(
+        location=display_location,
+        crop=alert.crop,
+        risk=alert.risk,
+        confidence=alert.confidence,
+        timing=alert.timing,
+        advice=alert.advice,
+        sms=_build_sms(display_location, alert.crop, alert.risk, alert.advice, alert.weather),
+        source=alert.source,
+        weather=alert.weather,
+    )
+
+
 async def get_watchlist_alerts() -> List[Alert]:
     cached_alerts = WATCHLIST_CACHE.get('alerts') or []
     cached_at = float(WATCHLIST_CACHE.get('timestamp') or 0.0)
-    if cached_alerts and time.monotonic() - cached_at < WATCHLIST_CACHE_TTL_SECONDS:
+    if cached_alerts and time.monotonic() - cached_at < NOTIFICATION_CACHE_TTL_SECONDS:
         return cached_alerts
 
-    watchlist_requests = [
-        PredictRequest(location=location, crop=crop)
-        for location, crop in WATCHLIST_ITEMS
-    ]
-
     results = await asyncio.gather(
-        *(build_live_alert(request) for request in watchlist_requests),
-        return_exceptions=True,
+        *(build_watchlist_alert(item) for item in WATCHLIST_ITEMS),
     )
 
-    alerts = []
-    for result in results:
-        if not isinstance(result, Exception):
-            alerts.append(result)
+    alerts = [result for result in results if result is not None]
 
     if alerts:
         WATCHLIST_CACHE['timestamp'] = time.monotonic()
@@ -354,7 +431,12 @@ async def get_watchlist_alerts() -> List[Alert]:
 
 @app.get('/sample-alerts', response_model=BatchResponse)
 async def sample_alerts():
-    alerts = await get_watchlist_alerts()
+    results = await asyncio.gather(
+        *(build_watchlist_alert(item) for item in SAMPLE_ALERT_ITEMS),
+    )
+    alerts = [result for result in results if result is not None]
+    if not alerts:
+        raise HTTPException(status_code=502, detail='Could not load sample Myanmar alerts from weather services.')
     return {'alerts': alerts}
 
 
