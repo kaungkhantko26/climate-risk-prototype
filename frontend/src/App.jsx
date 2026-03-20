@@ -754,7 +754,7 @@ export default function App() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.82fr)] gap-6 items-center">
+      <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.82fr)] gap-6 items-start">
         <div className="bg-white rounded-3xl p-4 md:p-6 border border-outline/10 shadow-[0_12px_48px_rgba(27,29,14,0.08)] overflow-hidden flex items-center justify-center">
           <div className="w-full max-w-[760px] space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -818,7 +818,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="space-y-5 self-center">
+        <div className="space-y-5 self-start">
           <form className="bg-surface-container-low rounded-3xl p-6 border border-outline/10 space-y-4" onSubmit={runMapLookup}>
             <div className="flex items-center gap-3">
               <div className="w-14 h-14 rounded-2xl bg-primary-container text-primary flex items-center justify-center">
