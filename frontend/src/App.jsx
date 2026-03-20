@@ -16,6 +16,8 @@ const SYSTEM_NOTIFICATION_POLL_MS = 60000
 const SYSTEM_NOTIFICATION_DELTA_C = 1.5
 const SYSTEM_NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000
 const CUTE_GREETING_INTERVAL_MS = 5 * 60 * 1000
+const ADMIN_BROADCAST_POLL_MS = 15000
+const ADMIN_VIEW_ID = 'admin-noti'
 const ICON_VERSION = '20260321'
 const CUTE_GREETING_MESSAGES = [
   {
@@ -317,6 +319,19 @@ const pickCuteGreetingMessage = (previousIndex) => {
   }
 }
 
+const getRequestedViewFromLocation = () => {
+  if (typeof window === 'undefined') return 'home'
+
+  const pathname = window.location.pathname.replace(/\/+$/, '') || '/'
+  const hashRoute = window.location.hash.replace(/^#/, '')
+
+  if (pathname === '/noti' || pathname === '/noti.html' || hashRoute === '/noti') {
+    return ADMIN_VIEW_ID
+  }
+
+  return 'home'
+}
+
 export default function App() {
   const [alerts, setAlerts] = useState([])
   const [selectedAlert, setSelectedAlert] = useState(null)
@@ -326,12 +341,17 @@ export default function App() {
   const [generatedAlert, setGeneratedAlert] = useState(null)
   const [form, setForm] = useState(defaultForm)
   const [status, setStatus] = useState('မြန်မာနိုင်ငံ ရာသီဥတုဒေတာများကို ချိတ်ဆက်နေပါသည်...')
-  const [activeView, setActiveView] = useState('home')
+  const [activeView, setActiveView] = useState(getRequestedViewFromLocation)
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLocating, setIsLocating] = useState(false)
   const [notificationsError, setNotificationsError] = useState('')
   const [lastFeedRefresh, setLastFeedRefresh] = useState(null)
+  const [currentBroadcast, setCurrentBroadcast] = useState(null)
+  const [adminBroadcastForm, setAdminBroadcastForm] = useState({ adminKey: '', title: '', body: '' })
+  const [adminBroadcastStatus, setAdminBroadcastStatus] = useState('')
+  const [adminBroadcastError, setAdminBroadcastError] = useState('')
+  const [isSendingAdminBroadcast, setIsSendingAdminBroadcast] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState(
     getNotificationSupport() ? Notification.permission : 'unsupported',
   )
@@ -341,6 +361,7 @@ export default function App() {
   const lastSystemNotificationAtRef = useRef(0)
   const systemNotificationBootstrappedRef = useRef(false)
   const lastGreetingIndexRef = useRef(-1)
+  const deliveredBroadcastIdRef = useRef('')
 
   const notificationsSupported = getNotificationSupport()
 
@@ -403,6 +424,29 @@ export default function App() {
     mediaQuery.addListener(syncStandalone)
     return () => {
       mediaQuery.removeListener(syncStandalone)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    deliveredBroadcastIdRef.current = window.localStorage.getItem('climate-monitor-last-admin-broadcast-id') || ''
+
+    const syncRequestedView = () => {
+      const requestedView = getRequestedViewFromLocation()
+      setActiveView((prev) => {
+        if (requestedView === ADMIN_VIEW_ID) return ADMIN_VIEW_ID
+        return prev === ADMIN_VIEW_ID ? 'home' : prev
+      })
+    }
+
+    syncRequestedView()
+    window.addEventListener('hashchange', syncRequestedView)
+    window.addEventListener('popstate', syncRequestedView)
+
+    return () => {
+      window.removeEventListener('hashchange', syncRequestedView)
+      window.removeEventListener('popstate', syncRequestedView)
     }
   }, [])
 
@@ -620,6 +664,79 @@ export default function App() {
     }
   }, [notificationPermission, notificationsSupported])
 
+  useEffect(() => {
+    if (!API_BASE) return undefined
+
+    const shouldPollAdminBroadcast = activeView === ADMIN_VIEW_ID || (
+      notificationsSupported && notificationPermission === 'granted'
+    )
+    if (!shouldPollAdminBroadcast) return undefined
+
+    let cancelled = false
+    let inFlight = false
+
+    const pollAdminBroadcast = async () => {
+      if (cancelled || inFlight) return
+      inFlight = true
+
+      try {
+        const response = await fetch(`${API_BASE}/admin-broadcast/current`, { cache: 'no-store' })
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, 'Admin broadcast feed ကို မရရှိနိုင်ပါ။'))
+        }
+
+        const data = await response.json()
+        const nextBroadcast = data.broadcast || null
+        if (cancelled) return
+
+        setCurrentBroadcast(nextBroadcast)
+        setAdminBroadcastError('')
+
+        if (
+          activeView === ADMIN_VIEW_ID
+          || notificationPermission !== 'granted'
+          || !nextBroadcast?.id
+          || nextBroadcast.id === deliveredBroadcastIdRef.current
+        ) {
+          return
+        }
+
+        const delivered = await showSystemNotification(nextBroadcast.title, nextBroadcast.body, {
+          tag: nextBroadcast.id,
+          renotify: true,
+          requireInteraction: true,
+          data: {
+            path: '/#',
+            view: 'home',
+          },
+        })
+
+        if (delivered && typeof window !== 'undefined') {
+          deliveredBroadcastIdRef.current = nextBroadcast.id
+          window.localStorage.setItem('climate-monitor-last-admin-broadcast-id', nextBroadcast.id)
+        }
+      } catch (error) {
+        if (cancelled) return
+
+        if (activeView === ADMIN_VIEW_ID) {
+          setAdminBroadcastError(error.message || 'Admin broadcast feed ကို မရရှိနိုင်ပါ။')
+        }
+      } finally {
+        inFlight = false
+      }
+    }
+
+    void pollAdminBroadcast()
+    const intervalId = window.setInterval(() => {
+      void pollAdminBroadcast()
+    }, ADMIN_BROADCAST_POLL_MS)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [API_BASE, activeView, notificationPermission, notificationsSupported])
+
   const currentAlert = useMemo(() => generatedAlert || selectedAlert, [generatedAlert, selectedAlert])
   const currentMeta = useMemo(() => getRiskMeta(currentAlert), [currentAlert])
   const guideCards = useMemo(() => getGuideCards(currentAlert), [currentAlert])
@@ -744,6 +861,68 @@ export default function App() {
       setStatus('Notification ခွင့်ပြုချက်ကို မပေးရသေးပါ။')
     } catch {
       setStatus('Notification permission ကို မတောင်းခံနိုင်ပါ။')
+    }
+  }
+
+  const updateAdminBroadcastField = (key, value) => {
+    setAdminBroadcastForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const sendAdminBroadcast = async (event) => {
+    event.preventDefault()
+
+    const adminKey = adminBroadcastForm.adminKey.trim()
+    const title = adminBroadcastForm.title.trim()
+    const body = adminBroadcastForm.body.trim()
+
+    if (!adminKey || !title || !body) {
+      setAdminBroadcastError('Admin key, header, and message body are required.')
+      return
+    }
+
+    if (!API_BASE) {
+      setAdminBroadcastError('Live backend URL မသတ်မှတ်ရသေးပါ။')
+      return
+    }
+
+    setIsSendingAdminBroadcast(true)
+    setAdminBroadcastError('')
+    setAdminBroadcastStatus('Sending admin notification to active users...')
+
+    try {
+      const response = await fetch(`${API_BASE}/admin-broadcast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admin_key: adminKey,
+          title,
+          body,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Admin notification ကို မပို့နိုင်ပါ။'))
+      }
+
+      const nextBroadcast = await response.json()
+      setCurrentBroadcast(nextBroadcast)
+      setAdminBroadcastStatus(`"${nextBroadcast.title}" notification ကို active users အတွက် ပို့ပြီးပါပြီ။`)
+
+      if (typeof window !== 'undefined') {
+        deliveredBroadcastIdRef.current = nextBroadcast.id
+        window.localStorage.setItem('climate-monitor-last-admin-broadcast-id', nextBroadcast.id)
+      }
+
+      setAdminBroadcastForm((prev) => ({
+        ...prev,
+        title: '',
+        body: '',
+      }))
+    } catch (error) {
+      setAdminBroadcastError(error.message || 'Admin notification ကို မပို့နိုင်ပါ။')
+      setAdminBroadcastStatus('')
+    } finally {
+      setIsSendingAdminBroadcast(false)
     }
   }
 
@@ -1548,6 +1727,130 @@ export default function App() {
     </div>
   )
 
+  const renderAdminNotificationView = () => (
+    <main className="min-h-screen px-6 py-10 max-w-5xl mx-auto space-y-6">
+      <section className="bg-white rounded-3xl p-6 md:p-8 border border-outline/10 shadow-[0_12px_48px_rgba(27,29,14,0.06)]">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase font-label text-primary tracking-widest">Hidden Admin Page</div>
+            <h1 className="mt-1 text-3xl font-headline font-extrabold">Broadcast Notification Sender</h1>
+            <p className="mt-2 text-on-surface-variant font-body">
+              ဒီ page ကို nav ထဲမှာ မပြထားပါ။ Header နဲ့ message body ကို ရေးပြီး active users အားလုံးဆီသို့ web notification ပို့နိုင်ပါသည်။
+            </p>
+          </div>
+          <a
+            className="inline-flex items-center gap-2 rounded-full border border-outline/10 bg-white px-5 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all"
+            href="/"
+          >
+            <span className="material-symbols-outlined text-lg">arrow_back</span>
+            Dashboard သို့ ပြန်ရန်
+          </a>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6">
+        <div className="bg-white rounded-3xl p-6 md:p-8 border border-outline/10 shadow-[0_12px_48px_rgba(27,29,14,0.06)]">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-14 h-14 rounded-2xl bg-primary-container text-primary flex items-center justify-center">
+              <span className="material-symbols-outlined text-3xl">campaign</span>
+            </div>
+            <div>
+              <h3 className="font-headline text-2xl font-bold">Send Admin Notification</h3>
+              <p className="text-sm text-on-surface-variant font-label">Header နဲ့ body ကို ဖြည့်ပြီး active sessions ဆီသို့ ချက်ချင်း broadcast လုပ်ပါ</p>
+            </div>
+          </div>
+
+          <form className="space-y-5" onSubmit={sendAdminBroadcast}>
+            <label className="block">
+              <span className="text-sm font-label font-bold text-on-surface-variant">Admin Key</span>
+              <input
+                value={adminBroadcastForm.adminKey}
+                onChange={(event) => updateAdminBroadcastField('adminKey', event.target.value)}
+                className="mt-2 w-full rounded-2xl border-outline/10 bg-surface-container-low px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
+                placeholder="Enter ADMIN_NOTIFICATION_SECRET"
+                type="password"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-label font-bold text-on-surface-variant">Notification Header</span>
+              <input
+                value={adminBroadcastForm.title}
+                onChange={(event) => updateAdminBroadcastField('title', event.target.value)}
+                className="mt-2 w-full rounded-2xl border-outline/10 bg-surface-container-low px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
+                maxLength={120}
+                placeholder="ဥပမာ - မိုးသက်လေပြင်း သတိထားပါ"
+                type="text"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-label font-bold text-on-surface-variant">Message Body</span>
+              <textarea
+                value={adminBroadcastForm.body}
+                onChange={(event) => updateAdminBroadcastField('body', event.target.value)}
+                className="mt-2 min-h-[180px] w-full rounded-2xl border-outline/10 bg-surface-container-low px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
+                maxLength={500}
+                placeholder="Users အားလုံးကို ပို့လိုသော message ကို ဒီနေရာမှာ ရေးပါ"
+              />
+            </label>
+
+            {adminBroadcastError ? (
+              <div className="rounded-2xl bg-error-container px-4 py-3 text-sm font-body text-on-error-container">
+                {adminBroadcastError}
+              </div>
+            ) : null}
+
+            {adminBroadcastStatus ? (
+              <div className="rounded-2xl bg-primary-container px-4 py-3 text-sm font-body text-on-primary-container">
+                {adminBroadcastStatus}
+              </div>
+            ) : null}
+
+            <button
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-3 text-sm font-headline font-bold text-on-primary shadow-lg hover:shadow-xl transition-all disabled:opacity-60"
+              disabled={isSendingAdminBroadcast}
+              type="submit"
+            >
+              <span className="material-symbols-outlined text-lg">send</span>
+              {isSendingAdminBroadcast ? 'Sending...' : 'Send To All Active Users'}
+            </button>
+          </form>
+        </div>
+
+        <div className="space-y-5">
+          <div className="bg-white rounded-3xl p-6 border border-outline/10 shadow-[0_12px_48px_rgba(27,29,14,0.04)]">
+            <div className="text-xs uppercase font-label text-primary tracking-widest">Current Broadcast</div>
+            {currentBroadcast ? (
+              <>
+                <div className="mt-3 text-2xl font-headline font-extrabold">{currentBroadcast.title}</div>
+                <div className="mt-3 rounded-2xl bg-surface-container-low p-4 text-on-surface-variant font-body leading-7">
+                  {currentBroadcast.body}
+                </div>
+                <div className="mt-3 text-sm text-on-surface-variant font-label">
+                  Last sent: {formatForecastTime(currentBroadcast.created_at)}
+                </div>
+              </>
+            ) : (
+              <div className="mt-3 rounded-2xl bg-surface-container-low p-4 text-on-surface-variant font-body">
+                No admin broadcast has been sent yet.
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-3xl p-6 border border-outline/10 shadow-[0_12px_48px_rgba(27,29,14,0.04)]">
+            <div className="text-xs uppercase font-label text-primary tracking-widest">How It Works</div>
+            <div className="mt-3 space-y-3 text-sm text-on-surface-variant font-body">
+              <p>Users who granted notification permission will receive the admin message as a system notification.</p>
+              <p>This works for active/open web app sessions with the current architecture.</p>
+              <p>Set `ADMIN_NOTIFICATION_SECRET` on the backend host so only you can send broadcasts from this page.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+
   const renderMainView = () => {
     switch (activeView) {
       case 'alerts':
@@ -1559,6 +1862,10 @@ export default function App() {
       default:
         return renderHomeView()
     }
+  }
+
+  if (activeView === ADMIN_VIEW_ID) {
+    return renderAdminNotificationView()
   }
 
   return (

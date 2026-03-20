@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import time
+from datetime import datetime, timezone
 from functools import lru_cache
 from typing import List
 from urllib.error import HTTPError, URLError
@@ -113,6 +114,7 @@ WATCHLIST_ITEMS = [
 ]
 GEOCODE_CACHE: dict[str, dict] = {}
 WATCHLIST_CACHE: dict[str, object] = {'timestamp': 0.0, 'alerts': []}
+ADMIN_BROADCAST_STATE: dict[str, dict | None] = {'broadcast': None}
 
 
 @lru_cache
@@ -122,6 +124,11 @@ def get_allowed_origins() -> List[str]:
         'http://127.0.0.1:5173,http://localhost:5173,https://climate-risk-prototype.kaungkhantko.top',
     )
     return [origin.strip() for origin in raw_origins.split(',') if origin.strip()]
+
+
+@lru_cache
+def get_admin_notification_secret() -> str:
+    return os.getenv('ADMIN_NOTIFICATION_SECRET', 'climate-monitor-admin')
 
 app.add_middleware(
     CORSMiddleware,
@@ -180,6 +187,23 @@ class LocationOption(BaseModel):
     district: str
     query: str
     products: List[str] = Field(default_factory=list)
+
+
+class AdminBroadcastRequest(BaseModel):
+    admin_key: str
+    title: str = Field(min_length=1, max_length=120)
+    body: str = Field(min_length=1, max_length=500)
+
+
+class AdminBroadcastMessage(BaseModel):
+    id: str
+    title: str
+    body: str
+    created_at: str
+
+
+class AdminBroadcastEnvelope(BaseModel):
+    broadcast: AdminBroadcastMessage | None = None
 
 
 def _mean(values: List[float]) -> float:
@@ -445,6 +469,14 @@ async def get_watchlist_alerts() -> List[Alert]:
     raise HTTPException(status_code=502, detail='Could not load live Myanmar watchlist from weather services.')
 
 
+def _get_current_admin_broadcast() -> AdminBroadcastMessage | None:
+    current_broadcast = ADMIN_BROADCAST_STATE.get('broadcast')
+    if not current_broadcast:
+        return None
+
+    return AdminBroadcastMessage(**current_broadcast)
+
+
 @app.get('/sample-alerts', response_model=BatchResponse)
 async def sample_alerts():
     results = await asyncio.gather(
@@ -473,6 +505,26 @@ def locations():
 async def live_notifications():
     alerts = await get_watchlist_alerts()
     return {'alerts': alerts}
+
+
+@app.get('/admin-broadcast/current', response_model=AdminBroadcastEnvelope)
+def admin_broadcast_current():
+    return {'broadcast': _get_current_admin_broadcast()}
+
+
+@app.post('/admin-broadcast', response_model=AdminBroadcastMessage)
+def admin_broadcast(request: AdminBroadcastRequest):
+    if request.admin_key != get_admin_notification_secret():
+        raise HTTPException(status_code=401, detail='Admin notification key is invalid.')
+
+    broadcast = AdminBroadcastMessage(
+        id=f'admin-broadcast-{int(time.time() * 1000)}',
+        title=request.title.strip(),
+        body=request.body.strip(),
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    ADMIN_BROADCAST_STATE['broadcast'] = broadcast.model_dump()
+    return broadcast
 
 
 @app.post('/predict', response_model=Alert)
