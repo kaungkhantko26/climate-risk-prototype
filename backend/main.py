@@ -124,12 +124,6 @@ def get_allowed_origins() -> List[str]:
         'http://127.0.0.1:5173,http://localhost:5173,https://climate-risk-prototype.kaungkhantko.top',
     )
     return [origin.strip() for origin in raw_origins.split(',') if origin.strip()]
-
-
-@lru_cache
-def get_admin_notification_secret() -> str:
-    return os.getenv('ADMIN_NOTIFICATION_SECRET', 'climate-monitor-admin')
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_allowed_origins(),
@@ -190,7 +184,6 @@ class LocationOption(BaseModel):
 
 
 class AdminBroadcastRequest(BaseModel):
-    admin_key: str
     title: str = Field(min_length=1, max_length=120)
     body: str = Field(min_length=1, max_length=500)
 
@@ -514,9 +507,6 @@ def admin_broadcast_current():
 
 @app.post('/admin-broadcast', response_model=AdminBroadcastMessage)
 def admin_broadcast(request: AdminBroadcastRequest):
-    if request.admin_key != get_admin_notification_secret():
-        raise HTTPException(status_code=401, detail='Admin notification key is invalid.')
-
     broadcast = AdminBroadcastMessage(
         id=f'admin-broadcast-{int(time.time() * 1000)}',
         title=request.title.strip(),

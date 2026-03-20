@@ -348,7 +348,7 @@ export default function App() {
   const [notificationsError, setNotificationsError] = useState('')
   const [lastFeedRefresh, setLastFeedRefresh] = useState(null)
   const [currentBroadcast, setCurrentBroadcast] = useState(null)
-  const [adminBroadcastForm, setAdminBroadcastForm] = useState({ adminKey: '', title: '', body: '' })
+  const [adminBroadcastForm, setAdminBroadcastForm] = useState({ title: '', body: '' })
   const [adminBroadcastStatus, setAdminBroadcastStatus] = useState('')
   const [adminBroadcastError, setAdminBroadcastError] = useState('')
   const [isSendingAdminBroadcast, setIsSendingAdminBroadcast] = useState(false)
@@ -871,12 +871,11 @@ export default function App() {
   const sendAdminBroadcast = async (event) => {
     event.preventDefault()
 
-    const adminKey = adminBroadcastForm.adminKey.trim()
     const title = adminBroadcastForm.title.trim()
     const body = adminBroadcastForm.body.trim()
 
-    if (!adminKey || !title || !body) {
-      setAdminBroadcastError('Admin key, header, and message body are required.')
+    if (!title || !body) {
+      setAdminBroadcastError('Header and message body are required.')
       return
     }
 
@@ -894,7 +893,6 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          admin_key: adminKey,
           title,
           body,
         }),
@@ -1735,7 +1733,7 @@ export default function App() {
             <div className="text-xs uppercase font-label text-primary tracking-widest">Hidden Admin Page</div>
             <h1 className="mt-1 text-3xl font-headline font-extrabold">Broadcast Notification Sender</h1>
             <p className="mt-2 text-on-surface-variant font-body">
-              ဒီ page ကို nav ထဲမှာ မပြထားပါ။ Header နဲ့ message body ကို ရေးပြီး active users အားလုံးဆီသို့ web notification ပို့နိုင်ပါသည်။
+              ဒီ page ကို nav ထဲမှာ မပြထားပါ။ Header နဲ့ message body ကို ရေးပြီး message sender ပုံစံနဲ့ active users အားလုံးဆီသို့ web notification ပို့နိုင်ပါသည်။
             </p>
           </div>
           <a
@@ -1761,17 +1759,6 @@ export default function App() {
           </div>
 
           <form className="space-y-5" onSubmit={sendAdminBroadcast}>
-            <label className="block">
-              <span className="text-sm font-label font-bold text-on-surface-variant">Admin Key</span>
-              <input
-                value={adminBroadcastForm.adminKey}
-                onChange={(event) => updateAdminBroadcastField('adminKey', event.target.value)}
-                className="mt-2 w-full rounded-2xl border-outline/10 bg-surface-container-low px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
-                placeholder="Enter ADMIN_NOTIFICATION_SECRET"
-                type="password"
-              />
-            </label>
-
             <label className="block">
               <span className="text-sm font-label font-bold text-on-surface-variant">Notification Header</span>
               <input
@@ -1843,7 +1830,7 @@ export default function App() {
             <div className="mt-3 space-y-3 text-sm text-on-surface-variant font-body">
               <p>Users who granted notification permission will receive the admin message as a system notification.</p>
               <p>This works for active/open web app sessions with the current architecture.</p>
-              <p>Set `ADMIN_NOTIFICATION_SECRET` on the backend host so only you can send broadcasts from this page.</p>
+              <p>This hidden page now sends directly without asking for an admin key.</p>
             </div>
           </div>
         </div>
