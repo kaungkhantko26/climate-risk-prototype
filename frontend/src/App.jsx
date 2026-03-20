@@ -252,6 +252,7 @@ export default function App() {
   const [form, setForm] = useState(defaultForm)
   const [status, setStatus] = useState('မြန်မာနိုင်ငံ ရာသီဥတုဒေတာများကို ချိတ်ဆက်နေပါသည်...')
   const [activeView, setActiveView] = useState('home')
+  const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLocating, setIsLocating] = useState(false)
   const [notificationsError, setNotificationsError] = useState('')
@@ -499,6 +500,11 @@ export default function App() {
   const runPrediction = async (event) => {
     event.preventDefault()
     await runTypedLookup('home')
+  }
+
+  const runQuickSearch = async (nextView) => {
+    await runTypedLookup(nextView)
+    setIsQuickSearchOpen(false)
   }
 
   const runMapLookup = async (event) => {
@@ -1202,29 +1208,114 @@ export default function App() {
       </aside>
 
       <header className="bg-surface/80 backdrop-blur-lg border-b border-outline/10 fixed top-0 left-0 md:left-72 right-0 z-50">
-        <div className="flex justify-between items-center px-6 h-20 w-full max-w-5xl mx-auto">
-          <div className="flex items-center gap-4">
-            <button className="md:hidden text-on-surface p-2 rounded-full hover:bg-surface-container-high transition-colors">
-              <span className="material-symbols-outlined">menu</span>
-            </button>
-            <div>
-              <h2 className="text-xl font-bold text-primary font-headline">{activeViewMeta.label}</h2>
-              <p className="text-xs text-on-surface-variant font-label">{currentAlert?.location || 'Myanmar Live Feed'}</p>
+        <div className="relative w-full max-w-5xl mx-auto px-6">
+          <div className="flex justify-between items-center h-20">
+            <div className="flex items-center gap-4">
+              <button className="md:hidden text-on-surface p-2 rounded-full hover:bg-surface-container-high transition-colors">
+                <span className="material-symbols-outlined">menu</span>
+              </button>
+              <div>
+                <h2 className="text-xl font-bold text-primary font-headline">{activeViewMeta.label}</h2>
+                <p className="text-xs text-on-surface-variant font-label">{currentAlert?.location || 'Myanmar Live Feed'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                className="p-2.5 rounded-full hover:bg-surface-container-high text-on-surface-variant transition-all active:scale-90"
+                onClick={() => setIsQuickSearchOpen((prev) => !prev)}
+                type="button"
+              >
+                <span className="material-symbols-outlined">search</span>
+              </button>
+              <button
+                className="p-2.5 rounded-full hover:bg-surface-container-high text-on-surface-variant relative transition-all active:scale-90"
+                onClick={() => setActiveView('alerts')}
+                type="button"
+              >
+                <span className="material-symbols-outlined">notifications</span>
+                {alerts.length > 0 ? <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span> : null}
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="p-2.5 rounded-full hover:bg-surface-container-high text-on-surface-variant transition-all active:scale-90">
-              <span className="material-symbols-outlined">search</span>
-            </button>
-            <button
-              className="p-2.5 rounded-full hover:bg-surface-container-high text-on-surface-variant relative transition-all active:scale-90"
-              onClick={() => setActiveView('alerts')}
-              type="button"
-            >
-              <span className="material-symbols-outlined">notifications</span>
-              {alerts.length > 0 ? <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span> : null}
-            </button>
-          </div>
+
+          {isQuickSearchOpen ? (
+            <div className="absolute top-[calc(100%+0.75rem)] left-0 right-0 md:left-auto md:right-6 md:w-[420px] rounded-3xl bg-white border border-outline/10 shadow-[0_18px_48px_rgba(27,29,14,0.14)] p-5 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase font-label text-primary tracking-wide">Quick Search</div>
+                  <div className="mt-1 font-headline text-xl font-bold">တည်နေရာရွေးပြီး စစ်ဆေးရန်</div>
+                </div>
+                <button
+                  className="rounded-full bg-surface-container-low p-2 text-on-surface-variant hover:bg-surface-container-high transition-all"
+                  onClick={() => setIsQuickSearchOpen(false)}
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+
+              <label className="block">
+                <span className="text-sm font-label font-bold text-on-surface-variant">မြန်မာတည်နေရာ</span>
+                <select
+                  value={form.location}
+                  onChange={(event) => updateField('location', event.target.value)}
+                  className="mt-2 w-full rounded-2xl border-outline/10 bg-surface-container-low px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
+                  disabled={locationOptions.length === 0}
+                >
+                  {locationOptions.length === 0 ? <option value="">Location menu loading...</option> : null}
+                  {groupedLocationOptions.map((group) => (
+                    <optgroup key={`quick-${group.region}`} label={group.region}>
+                      {group.items.map((option) => (
+                        <option key={`quick-${option.region}-${option.district}`} value={option.query}>
+                          {option.district}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-label font-bold text-on-surface-variant">သီးနှံအမျိုးအစား</span>
+                <select
+                  value={form.crop}
+                  onChange={(event) => updateField('crop', event.target.value)}
+                  className="mt-2 w-full rounded-2xl border-outline/10 bg-surface-container-low px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
+                >
+                  {cropOptions.map((crop) => (
+                    <option key={`quick-${crop}`} value={crop}>{crop}</option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant font-body">
+                {selectedLocationOption ? `${selectedLocationOption.district}, ${selectedLocationOption.region} • ${formatProducts(selectedLocationOption.products)}` : 'Location menu loading...'}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  className="rounded-2xl bg-primary px-5 py-3 text-sm font-headline font-bold text-on-primary shadow-lg hover:shadow-xl transition-all disabled:opacity-60"
+                  disabled={isSubmitting || isLocating || !form.location}
+                  onClick={() => {
+                    void runQuickSearch('home')
+                  }}
+                  type="button"
+                >
+                  Live Risk စစ်ဆေးရန်
+                </button>
+                <button
+                  className="rounded-2xl border border-outline/10 bg-white px-5 py-3 text-sm font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all disabled:opacity-60"
+                  disabled={isSubmitting || isLocating || !form.location}
+                  onClick={() => {
+                    void runQuickSearch('map')
+                  }}
+                  type="button"
+                >
+                  မြေပုံတွင်ဖွင့်ရန်
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </header>
 
