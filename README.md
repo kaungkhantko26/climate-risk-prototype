@@ -104,16 +104,16 @@ To use the live backend with the GitHub Pages frontend:
 ## Demo script
 
 1. Open the dashboard and show the sample alerts.
-2. Explain that the alerts come from the prediction API.
-3. Change rainfall / temperature / soil moisture values.
-4. Click **Generate Prediction**.
-5. Show the updated alert and SMS preview.
+2. Explain that the alerts come from live geocoding and forecast data.
+3. Enter a new real location and choose a crop.
+4. Click **Detect Risk**.
+5. Show the returned weather snapshot and SMS preview.
 6. Conclude with how this supports smallholder farmers with low-connectivity delivery.
 
 ## Next upgrades
 
 - Replace rule logic with a trained ML model
-- Add real weather API ingestion
 - Add Burmese language support
 - Add crop-specific recommendations
 - Add district-level map view
+- Add historical trend comparisons and rainfall anomaly scoring
