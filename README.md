@@ -64,6 +64,27 @@ If you only deploy the frontend, the site falls back to built-in demo alerts and
 
 If you deploy the FastAPI backend somewhere else, add a GitHub repository variable named `VITE_API_BASE_URL` with your backend URL and the Pages build will use it.
 
+## Backend deploy from GitHub
+
+GitHub Pages cannot run Python or FastAPI. GitHub's current Pages docs describe Pages as a static hosting service and explicitly note that GitHub Pages does not support server-side languages such as Python:
+- https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages
+- https://docs.github.com/enterprise-cloud@latest/pages/getting-started-with-github-pages/creating-a-github-pages-site
+
+This repo now includes:
+- `backend/Dockerfile` for container-based deployment
+- `render.yaml` for deploying the FastAPI backend directly from this GitHub repo on Render
+- `ALLOWED_ORIGINS` support in `backend/main.py` for the local frontend and `https://climate-risk-prototype.kaungkhantko.top`
+
+To use the live backend with the GitHub Pages frontend:
+
+1. Deploy the `backend/` service from this GitHub repo using Render or another Python host.
+2. Copy the deployed API URL, for example `https://your-api.onrender.com`.
+3. In GitHub, open this repo's `Settings > Secrets and variables > Actions > Variables`.
+4. Add `VITE_API_BASE_URL` with your deployed backend URL.
+5. Re-run the Pages workflow or push a new commit so the frontend rebuild picks up the API URL.
+
+The backend includes a health endpoint at `/health` for deployment checks.
+
 ## Demo script
 
 1. Open the dashboard and show the sample alerts.
