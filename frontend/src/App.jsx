@@ -1488,7 +1488,7 @@ export default function App() {
 
   return (
     <>
-      <aside className="hidden md:flex fixed left-0 top-0 h-full z-40 flex-col bg-surface-container-low w-72 border-r border-outline/10">
+      <aside className="hidden xl:flex fixed left-0 top-0 h-full z-40 flex-col bg-surface-container-low w-72 border-r border-outline/10">
         <div className="p-8">
           <div className="flex items-center gap-3 mb-2">
             <span className="material-symbols-outlined text-primary text-3xl">eco</span>
@@ -1525,11 +1525,11 @@ export default function App() {
 
       </aside>
 
-      <header className="bg-surface/80 backdrop-blur-lg border-b border-outline/10 fixed top-0 left-0 md:left-72 right-0 z-50">
+      <header className="bg-surface/80 backdrop-blur-lg border-b border-outline/10 fixed top-0 left-0 xl:left-72 right-0 z-50">
         <div className="relative w-full max-w-5xl mx-auto px-6">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-4">
-              <button className="md:hidden text-on-surface p-2 rounded-full hover:bg-surface-container-high transition-colors">
+              <button className="xl:hidden text-on-surface p-2 rounded-full hover:bg-surface-container-high transition-colors">
                 <span className="material-symbols-outlined">menu</span>
               </button>
               <div>
@@ -1641,7 +1641,7 @@ export default function App() {
         {renderMainView()}
       </main>
 
-      <nav className="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-4 pb-8 bg-surface/90 backdrop-blur-xl border-t border-outline/10 shadow-[0_-8px_32px_rgba(27,29,14,0.1)] z-50">
+      <nav className="xl:hidden fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-4 pb-8 bg-surface/90 backdrop-blur-xl border-t border-outline/10 shadow-[0_-8px_32px_rgba(27,29,14,0.1)] z-50">
         {views.map((item) => {
           const active = item.id === activeView
           return (
