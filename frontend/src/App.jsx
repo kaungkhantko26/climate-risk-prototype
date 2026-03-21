@@ -2421,9 +2421,6 @@ export default function App() {
         <div className="relative w-full max-w-5xl mx-auto px-6">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-4">
-              <button className="xl:hidden text-on-surface p-2 rounded-full hover:bg-surface-container-high transition-colors">
-                <span className="material-symbols-outlined">menu</span>
-              </button>
               <div>
                 <h2 className="text-xl font-bold text-primary font-headline">{activeViewMeta.label}</h2>
                 <p className="text-xs text-on-surface-variant font-label">{currentAlert?.location || 'Myanmar Live Feed'}</p>
