@@ -42,16 +42,108 @@ MYANMAR_LOCATION_ALIASES = {
 NOTIFICATION_CACHE_TTL_SECONDS = 300.0
 BACKGROUND_TEMPERATURE_CHANGE_C = 1.5
 BACKGROUND_GREETING_INTERVAL_SECONDS = 300
+
+
+def _build_yangon_township_items() -> list[dict[str, object]]:
+    def district_items(
+        district_group: str,
+        products: list[str],
+        townships: list[tuple[str, str]],
+    ) -> list[dict[str, object]]:
+        return [
+            {
+                'label': label,
+                'query': query,
+                'region': 'Yangon Region',
+                'district_group': district_group,
+                'menu_group': f'Yangon Region • {district_group}',
+                'products': products,
+            }
+            for label, query in townships
+        ]
+
+    return [
+        *district_items(
+            'Western Yangon District',
+            ['Rice', 'Vegetables', 'Fishery'],
+            [
+                ('Kamaryut Township', 'Kamayut Township, Yangon, Myanmar'),
+                ('Kyauktada Township', 'Kyauktada Township, Yangon, Myanmar'),
+                ('Kyimyindine Township', 'Kyeemyindaing Township, Yangon, Myanmar'),
+                ('Sangyoung Township', 'Sanchaung Township, Yangon, Myanmar'),
+                ('Seikkan Township', 'Seikkan Township, Yangon, Myanmar'),
+                ('Dagon Township', 'Dagon Township, Yangon, Myanmar'),
+                ('Pabedann Township', 'Pabedan Township, Yangon, Myanmar'),
+                ('Bahann Township', 'Bahan Township, Yangon, Myanmar'),
+                ('Mayangonn Township', 'Mayangon Township, Yangon, Myanmar'),
+                ('Latha Township', 'Latha Township, Yangon, Myanmar'),
+                ('Hline Township', 'Hlaing Township, Yangon, Myanmar'),
+                ('Lanmadaw Township', 'Lanmadaw Township, Yangon, Myanmar'),
+                ('Alone Township', 'Ahlone Township, Yangon, Myanmar'),
+            ],
+        ),
+        *district_items(
+            'Southern Yangon District',
+            ['Rice', 'Fishery', 'Coconut'],
+            [
+                ('Kawhmu Township', 'Kawhmu Township, Yangon, Myanmar'),
+                ('Kyauktan Township', 'Kyauktan Township, Yangon, Myanmar'),
+                ('Kungyangonn Township', 'Kungyangon Township, Yangon, Myanmar'),
+                ('Kayan Township', 'Kayan Township, Yangon, Myanmar'),
+                ('Seikkyi/Khanaungto Township', 'Seikkyi Kanaungto Township, Yangon, Myanmar'),
+                ('Twantay Township', 'Twante Township, Yangon, Myanmar'),
+                ('Dalla Township', 'Dala Township, Yangon, Myanmar'),
+                ('Thongwa Township', 'Thongwa Township, Yangon, Myanmar'),
+                ('Tanyin Township', 'Thanlyin Township, Yangon, Myanmar'),
+            ],
+        ),
+        *district_items(
+            'Northern Yangon District',
+            ['Rice', 'Vegetables', 'Fishery'],
+            [
+                ('Taikkyi Township', 'Taikkyi Township, Yangon, Myanmar'),
+                ('Htantabin Township', 'Htantabin Township, Yangon, Myanmar'),
+                ('Shwepyitha Township', 'Shwepyitha Township, Yangon, Myanmar'),
+                ('Hlinethaya Township', 'Hlaingthaya Township, Yangon, Myanmar'),
+                ('Hlegu Township', 'Hlegu Township, Yangon, Myanmar'),
+                ('Insein Township', 'Insein Township, Yangon, Myanmar'),
+                ('Mingaladon Township', 'Mingaladon Township, Yangon, Myanmar'),
+                ('Hmawby Township', 'Hmawbi Township, Yangon, Myanmar'),
+            ],
+        ),
+        *district_items(
+            'Eastern Yangon District',
+            ['Rice', 'Vegetables', 'Fishery'],
+            [
+                ('Tarmwe Township', 'Tamwe Township, Yangon, Myanmar'),
+                ('South Okkalapa Township', 'South Okkalapa Township, Yangon, Myanmar'),
+                ('Dagon Myothit (South) Township', 'Dagon Myothit South Township, Yangon, Myanmar'),
+                ('Dawbon Township', 'Dawbon Township, Yangon, Myanmar'),
+                ('Pazundaung Township', 'Pazundaung Township, Yangon, Myanmar'),
+                ('Botahtaung Township', 'Botataung Township, Yangon, Myanmar'),
+                ('Mingalataungnyunt Township', 'Mingala Taungnyunt Township, Yangon, Myanmar'),
+                ('North Okkalapa Township', 'North Okkalapa Township, Yangon, Myanmar'),
+                ('Yankin Township', 'Yankin Township, Yangon, Myanmar'),
+                ('Tharkayta Township', 'Thaketa Township, Yangon, Myanmar'),
+                ('Thingangyunn Township', 'Thingangyun Township, Yangon, Myanmar'),
+                ('Dagon Myothit (North) Township', 'Dagon Myothit North Township, Yangon, Myanmar'),
+            ],
+        ),
+    ]
+
+
 SAMPLE_ALERT_ITEMS = [
     {'label': 'Hlegu', 'query': 'Hlegu', 'region': 'Yangon Region', 'products': ['Rice', 'Vegetables', 'Fishery']},
     {'label': 'Magway', 'query': 'Magway', 'region': 'Magway Region', 'products': ['Sesame', 'Beans', 'Groundnut']},
     {'label': 'Bago', 'query': 'Bago', 'region': 'Bago Region', 'products': ['Rice', 'Beans', 'Sugarcane']},
 ]
-WATCHLIST_ITEMS = [
+YANGON_DISTRICT_WATCHLIST_ITEMS = [
     {'label': 'Yangon East', 'query': 'East Yangon District', 'region': 'Yangon Region', 'products': ['Rice', 'Vegetables', 'Fishery']},
     {'label': 'Yangon West', 'query': 'West Yangon District', 'region': 'Yangon Region', 'products': ['Rice', 'Vegetables', 'Fishery']},
     {'label': 'Yangon North', 'query': 'North Yangon District', 'region': 'Yangon Region', 'products': ['Rice', 'Vegetables', 'Fishery']},
     {'label': 'Yangon South', 'query': 'South Yangon District', 'region': 'Yangon Region', 'products': ['Rice', 'Fishery', 'Coconut']},
+]
+NON_YANGON_WATCHLIST_ITEMS = [
     {'label': 'Pathein', 'query': 'Pathein', 'region': 'Ayeyarwady Region', 'products': ['Rice', 'Pulses', 'Coconut', 'Fish']},
     {'label': 'Myaungmya', 'query': 'Myaungmya', 'region': 'Ayeyarwady Region', 'products': ['Rice', 'Fish', 'Coconut']},
     {'label': 'Hinthada', 'query': 'Hinthada', 'region': 'Ayeyarwady Region', 'products': ['Rice', 'Beans', 'Jute']},
@@ -116,6 +208,8 @@ WATCHLIST_ITEMS = [
     {'label': 'Tachileik', 'query': 'Tachileik', 'region': 'Shan State', 'products': ['Rice', 'Corn', 'Fruits']},
     {'label': 'Kyaukme', 'query': 'Kyaukme', 'region': 'Shan State', 'products': ['Rice', 'Tea', 'Coffee']},
 ]
+WATCHLIST_ITEMS = YANGON_DISTRICT_WATCHLIST_ITEMS + NON_YANGON_WATCHLIST_ITEMS
+LOCATION_MENU_ITEMS = _build_yangon_township_items() + NON_YANGON_WATCHLIST_ITEMS
 BACKGROUND_CUTE_GREETING_MESSAGES = [
     {
         'title': 'သာယာသောနေ့လေးဖြစ်ပါစေ',
@@ -232,6 +326,8 @@ class LocationOption(BaseModel):
     region: str
     district: str
     query: str
+    district_group: str | None = None
+    menu_group: str | None = None
     products: List[str] = Field(default_factory=list)
 
 
@@ -725,7 +821,11 @@ async def build_watchlist_alert(item: dict[str, object]) -> Alert | None:
     except HTTPException:
         return None
 
-    display_location = f"{item['label']}, {item['region']}"
+    display_parts = [str(item['label'])]
+    if item.get('district_group'):
+        display_parts.append(str(item['district_group']))
+    display_parts.append(str(item['region']))
+    display_location = ', '.join(display_parts)
     return Alert(
         location=display_location,
         crop=primary_crop,
@@ -905,9 +1005,11 @@ def locations():
             region=str(item['region']),
             district=str(item['label']),
             query=str(item['query']),
+            district_group=str(item['district_group']) if item.get('district_group') else None,
+            menu_group=str(item['menu_group']) if item.get('menu_group') else str(item['region']),
             products=[str(product) for product in item.get('products') or []],
         )
-        for item in WATCHLIST_ITEMS
+        for item in LOCATION_MENU_ITEMS
     ]
 
 

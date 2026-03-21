@@ -128,6 +128,17 @@ const formatProducts = (products) => {
   return products.join(' • ')
 }
 
+const formatLocationOptionSummary = (option) => {
+  if (!option) return 'Location menu loading...'
+
+  const parts = [option.district]
+  if (option.district_group) {
+    parts.push(option.district_group)
+  }
+  parts.push(option.region)
+  return parts.join(', ')
+}
+
 const readGeolocationError = (error) => {
   if (!error) return 'လက်ရှိတည်နေရာကို မရရှိနိုင်ပါ။'
 
@@ -266,17 +277,18 @@ const pickMatchingAlert = (currentAlert, nextAlerts) => {
 }
 
 const groupLocationOptions = (options) => {
-  const regionMap = new Map()
+  const groupMap = new Map()
 
   options.forEach((option) => {
-    if (!regionMap.has(option.region)) {
-      regionMap.set(option.region, [])
+    const label = option.menu_group || option.region
+    if (!groupMap.has(label)) {
+      groupMap.set(label, [])
     }
 
-    regionMap.get(option.region).push(option)
+    groupMap.get(label).push(option)
   })
 
-  return Array.from(regionMap.entries()).map(([region, items]) => ({ region, items }))
+  return Array.from(groupMap.entries()).map(([label, items]) => ({ label, items }))
 }
 
 const isStandaloneApp = () => {
@@ -1351,7 +1363,7 @@ export default function App() {
                   <option value="">Location menu loading...</option>
                 ) : null}
                 {groupedLocationOptions.map((group) => (
-                  <optgroup key={group.region} label={group.region}>
+                  <optgroup key={group.label} label={group.label}>
                     {group.items.map((option) => (
                       <option key={`${option.region}-${option.district}`} value={option.query}>
                         {option.district}
@@ -1378,7 +1390,7 @@ export default function App() {
             <div className="rounded-2xl bg-surface-container-low p-4 border border-outline/10">
               <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Selected Menu</div>
               <div className="mt-2 font-headline font-bold">
-                {selectedLocationOption ? `${selectedLocationOption.district}, ${selectedLocationOption.region}` : 'Location menu loading...'}
+                {formatLocationOptionSummary(selectedLocationOption)}
               </div>
               <div className="mt-2 text-sm text-on-surface-variant font-body">
                 {selectedLocationOption ? formatProducts(selectedLocationOption.products) : 'Menu data မရရှိသေးပါ။'}
@@ -1786,7 +1798,7 @@ export default function App() {
                       <option value="">Location menu loading...</option>
                     ) : null}
                     {groupedLocationOptions.map((group) => (
-                      <optgroup key={`map-${group.region}`} label={group.region}>
+                      <optgroup key={`map-${group.label}`} label={group.label}>
                         {group.items.map((option) => (
                           <option key={`map-${option.region}-${option.district}`} value={option.query}>
                             {option.district}
@@ -2173,7 +2185,7 @@ export default function App() {
                 >
                   {locationOptions.length === 0 ? <option value="">Location menu loading...</option> : null}
                   {groupedLocationOptions.map((group) => (
-                    <optgroup key={`quick-${group.region}`} label={group.region}>
+                    <optgroup key={`quick-${group.label}`} label={group.label}>
                       {group.items.map((option) => (
                         <option key={`quick-${option.region}-${option.district}`} value={option.query}>
                           {option.district}
@@ -2198,7 +2210,7 @@ export default function App() {
               </label>
 
               <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant font-body">
-                {selectedLocationOption ? `${selectedLocationOption.district}, ${selectedLocationOption.region} • ${formatProducts(selectedLocationOption.products)}` : 'Location menu loading...'}
+                {selectedLocationOption ? `${formatLocationOptionSummary(selectedLocationOption)} • ${formatProducts(selectedLocationOption.products)}` : 'Location menu loading...'}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
