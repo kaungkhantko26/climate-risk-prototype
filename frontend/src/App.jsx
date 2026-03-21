@@ -398,7 +398,7 @@ export default function App() {
   const [adminBroadcastStatus, setAdminBroadcastStatus] = useState('')
   const [adminBroadcastError, setAdminBroadcastError] = useState('')
   const [isSendingAdminBroadcast, setIsSendingAdminBroadcast] = useState(false)
-  const [pushConfig, setPushConfig] = useState({ enabled: false, public_key: '' })
+  const [pushConfig, setPushConfig] = useState({ enabled: false, public_key: '', loaded: !API_BASE })
   const [notificationPermission, setNotificationPermission] = useState(
     getNotificationSupport() ? Notification.permission : 'unsupported',
   )
@@ -469,14 +469,19 @@ export default function App() {
         setPushConfig({
           enabled: Boolean(data.enabled),
           public_key: data.public_key || '',
+          loaded: true,
         })
       } catch {
         if (cancelled) return
-        setPushConfig({ enabled: false, public_key: '' })
+        setPushConfig({ enabled: false, public_key: '', loaded: true })
       }
     }
 
-    void loadPushConfig()
+    if (!API_BASE) {
+      setPushConfig({ enabled: false, public_key: '', loaded: true })
+    } else {
+      void loadPushConfig()
+    }
 
     return () => {
       cancelled = true
@@ -610,6 +615,8 @@ export default function App() {
 
   useEffect(() => {
     if (!notificationsSupported || notificationPermission !== 'granted' || !notificationChannels.temperature) return undefined
+    if (!pushConfig.loaded) return undefined
+    if (pushConfig.enabled) return undefined
     if (!API_BASE) return undefined
 
     let cancelled = false
@@ -688,13 +695,15 @@ export default function App() {
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [notificationChannels.temperature, notificationPermission, notificationsSupported])
+  }, [notificationChannels.temperature, notificationPermission, notificationsSupported, pushConfig.enabled, pushConfig.loaded])
 
   useEffect(() => {
     if (!notificationChannels.app) return
     if (notificationPermission !== 'granted') return
     if (!isStandaloneMode) return
     if (typeof window === 'undefined') return
+    if (!pushConfig.loaded) return
+    if (pushConfig.enabled) return
 
     const sessionKey = 'climate-monitor-standalone-welcome'
     if (window.sessionStorage.getItem(sessionKey)) return
@@ -711,10 +720,12 @@ export default function App() {
         },
       },
     )
-  }, [isStandaloneMode, notificationChannels.app, notificationPermission])
+  }, [isStandaloneMode, notificationChannels.app, notificationPermission, pushConfig.enabled, pushConfig.loaded])
 
   useEffect(() => {
     if (!notificationsSupported || notificationPermission !== 'granted' || !notificationChannels.app) return undefined
+    if (!pushConfig.loaded) return undefined
+    if (pushConfig.enabled) return undefined
 
     let cancelled = false
 
@@ -742,7 +753,7 @@ export default function App() {
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [notificationChannels.app, notificationPermission, notificationsSupported])
+  }, [notificationChannels.app, notificationPermission, notificationsSupported, pushConfig.enabled, pushConfig.loaded])
 
   useEffect(() => {
     if (notificationPermission !== 'granted') return
@@ -761,7 +772,11 @@ export default function App() {
     if (!API_BASE) return undefined
 
     const shouldPollAdminBroadcast = activeView === ADMIN_VIEW_ID || (
-      notificationsSupported && notificationPermission === 'granted' && notificationChannels.app
+      pushConfig.loaded
+      && !pushConfig.enabled
+      && notificationsSupported
+      && notificationPermission === 'granted'
+      && notificationChannels.app
     )
     if (!shouldPollAdminBroadcast) return undefined
 
@@ -829,7 +844,7 @@ export default function App() {
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [API_BASE, activeView, notificationChannels.app, notificationPermission, notificationsSupported])
+  }, [API_BASE, activeView, notificationChannels.app, notificationPermission, notificationsSupported, pushConfig.enabled, pushConfig.loaded])
 
   const currentAlert = useMemo(() => generatedAlert || selectedAlert, [generatedAlert, selectedAlert])
   const currentMeta = useMemo(() => getRiskMeta(currentAlert), [currentAlert])
@@ -879,7 +894,9 @@ export default function App() {
   const currentLocationLabel = currentAlert?.location || form.location || 'Myanmar Live Feed'
   const currentTemperatureLabel = formatValue(currentAlert?.weather?.current_temperature_c, '°C', 1)
   const notificationStatusLabel = notificationPermission === 'granted'
-    ? pushConfig.enabled
+    ? !pushConfig.loaded
+      ? 'Checking background push configuration...'
+      : pushConfig.enabled
       ? 'Background push notifications are ready'
       : 'System notifications are ready, but background push is not configured'
     : notificationPermission === 'denied'
