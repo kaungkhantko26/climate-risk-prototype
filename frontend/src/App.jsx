@@ -1414,7 +1414,7 @@ export default function App() {
       <section
         className="text-on-primary rounded-3xl p-6 md:p-10 shadow-xl relative overflow-hidden bg-cover bg-center"
         style={{
-          backgroundImage: `linear-gradient(135deg, rgba(23, 77, 53, 0.84), rgba(45, 106, 79, 0.7)), url(${import.meta.env.BASE_URL}IMG_0077.jpg)`,
+          backgroundImage: `linear-gradient(135deg, rgba(23, 77, 53, 0.92), rgba(45, 106, 79, 0.82))`,
         }}
       >
         <div
