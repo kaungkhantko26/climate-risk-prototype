@@ -12,8 +12,7 @@ const views = [
   { id: 'map', icon: 'map', label: 'မြေပုံ' },
   { id: 'guide', icon: 'menu_book', label: 'လမ်းညွှန်' },
 ]
-const SYSTEM_NOTIFICATION_POLL_MS = 60000
-const SYSTEM_NOTIFICATION_DELTA_C = 1.5
+const SYSTEM_NOTIFICATION_POLL_MS = 5 * 60 * 1000
 const SYSTEM_NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000
 const CUTE_GREETING_INTERVAL_MS = 5 * 60 * 1000
 const ADMIN_BROADCAST_POLL_MS = 15000
@@ -315,20 +314,11 @@ const getNotificationSupport = () => (
   && 'serviceWorker' in navigator
 )
 
-const getTemperatureChangeCopy = (alert, delta) => {
+const getHottestTemperatureCopy = (alert) => {
   const currentTemperature = formatValue(alert.weather?.current_temperature_c, '°C', 1)
-  const magnitude = Math.abs(delta).toFixed(1)
-
-  if (delta > 0) {
-    return {
-      title: `${alert.location} ပိုပူလာနေပါသည်`,
-      body: `အခု ${currentTemperature} ရောက်နေပြီး ${magnitude}°C တက်လာပါပြီ။ ${alert.crop} စိုက်ခင်းအတွက် ရေပြင်ဆင်ထားပါ။`,
-    }
-  }
-
   return {
-    title: `${alert.location} အပူနည်းလာနေပါသည်`,
-    body: `အခု ${currentTemperature} ဖြစ်နေပြီး ${magnitude}°C လျော့သွားပါပြီ။ ရာသီဥတုအပြောင်းအလဲကို ဆက်စောင့်ကြည့်ပါ။`,
+    title: `${alert.location} သည် လက်ရှိအပူဆုံးနေရာဖြစ်ပါသည်`,
+    body: `စောင့်ကြည့်နေသည့်နေရာများထဲတွင် ${currentTemperature} ဖြင့် အပူချိန်အမြင့်ဆုံးဖြစ်နေပါသည်။ ${alert.crop} စိုက်ခင်းအတွက် ရေသွင်းစနစ်နှင့် အပူကာကွယ်ရေးကို ပြင်ဆင်ပါ။`,
   }
 }
 
@@ -442,9 +432,7 @@ export default function App() {
   const [installGateStatus, setInstallGateStatus] = useState('')
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null)
   const [notificationPromptDismissed, setNotificationPromptDismissed] = useState(false)
-  const temperatureHistoryRef = useRef(new Map())
   const lastSystemNotificationAtRef = useRef(0)
-  const systemNotificationBootstrappedRef = useRef(false)
   const lastGreetingIndexRef = useRef(-1)
   const deliveredBroadcastIdRef = useRef('')
   const tabTransitionTimeoutsRef = useRef([])
@@ -722,45 +710,22 @@ export default function App() {
 
         const data = await response.json()
         const nextAlerts = data.alerts || []
-        const previousTemperatures = temperatureHistoryRef.current
-        let strongestChange = null
-
-        nextAlerts.forEach((alert) => {
-          const nextTemperature = alert.weather?.current_temperature_c
-          const previousTemperature = previousTemperatures.get(alert.location)
-
-          if (typeof nextTemperature === 'number' && typeof previousTemperature === 'number') {
-            const delta = Number((nextTemperature - previousTemperature).toFixed(1))
-
-            if (Math.abs(delta) >= SYSTEM_NOTIFICATION_DELTA_C) {
-              if (!strongestChange || Math.abs(delta) > Math.abs(strongestChange.delta)) {
-                strongestChange = { alert, delta }
-              }
-            }
-          }
-
-          if (typeof nextTemperature === 'number') {
-            previousTemperatures.set(alert.location, nextTemperature)
-          }
-        })
-
-        if (!systemNotificationBootstrappedRef.current) {
-          systemNotificationBootstrappedRef.current = true
-          return
-        }
+        const hottestAlert = [...nextAlerts].sort(
+          (left, right) => (right.weather?.current_temperature_c || 0) - (left.weather?.current_temperature_c || 0),
+        )[0]
 
         const now = Date.now()
-        if (!strongestChange || now - lastSystemNotificationAtRef.current < SYSTEM_NOTIFICATION_COOLDOWN_MS) {
+        if (!hottestAlert || now - lastSystemNotificationAtRef.current < SYSTEM_NOTIFICATION_COOLDOWN_MS) {
           return
         }
 
-        const copy = getTemperatureChangeCopy(strongestChange.alert, strongestChange.delta)
+        const copy = getHottestTemperatureCopy(hottestAlert)
         const delivered = await showSystemNotification(copy.title, copy.body, {
-          tag: `temperature-change-${strongestChange.alert.location}`,
+          tag: `hottest-temperature-${hottestAlert.location}`,
           data: {
             path: '/#',
             view: 'alerts',
-            location: strongestChange.alert.location,
+            location: hottestAlert.location,
           },
         })
 

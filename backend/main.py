@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import random
+import re
 import time
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -425,6 +426,79 @@ def _normalize_myanmar_query(query: str) -> str:
     return normalized
 
 
+def _find_location_item(query: str) -> dict[str, object] | None:
+    normalized_query = ' '.join(str(query).split()).lower()
+    for item in LOCATION_MENU_ITEMS:
+        item_query = ' '.join(str(item['query']).split()).lower()
+        item_label = ' '.join(str(item['label']).split()).lower()
+        if normalized_query in {item_query, item_label}:
+            return item
+    return None
+
+
+def _format_location_item_display(item: dict[str, object]) -> str:
+    parts = [str(item['label'])]
+    if item.get('district_group'):
+        parts.append(str(item['district_group']))
+    parts.append(str(item['region']))
+    return ', '.join(parts)
+
+
+def _clean_geocode_term(term: str) -> str:
+    cleaned = re.sub(r'[()/]', ' ', term)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip(' ,')
+    return cleaned
+
+
+def _build_geocode_search_terms(query: str) -> list[str]:
+    normalized_query = _normalize_myanmar_query(query)
+    query_item = _find_location_item(query)
+    search_terms: list[str] = []
+    seen_terms: set[str] = set()
+
+    def add_term(term: str | None):
+        if not term:
+            return
+        cleaned = _clean_geocode_term(str(term))
+        if not cleaned:
+            return
+        lowered = cleaned.lower()
+        if lowered in seen_terms:
+            return
+        seen_terms.add(lowered)
+        search_terms.append(cleaned)
+
+    add_term(normalized_query)
+    if normalized_query and 'myanmar' not in normalized_query.lower():
+        add_term(f'{normalized_query}, Myanmar')
+
+    first_segment = normalized_query.split(',')[0].strip() if normalized_query else ''
+    if first_segment:
+        add_term(first_segment)
+
+    if query_item:
+        label = str(query_item['label'])
+        region = str(query_item['region'])
+        district_group = str(query_item.get('district_group') or '')
+        add_term(label)
+        add_term(f'{label}, {region}, Myanmar')
+        if district_group:
+            add_term(f'{label}, {district_group}, {region}, Myanmar')
+
+        short_label = re.sub(r'\bTownship\b', '', label, flags=re.IGNORECASE).strip(' ,')
+        if short_label:
+            add_term(f'{short_label}, {region}, Myanmar')
+            add_term(f'{short_label} Township, {region}, Myanmar')
+
+    if 'yangon' in normalized_query.lower():
+        short_first_segment = re.sub(r'\bTownship\b', '', first_segment, flags=re.IGNORECASE).strip(' ,')
+        if short_first_segment:
+            add_term(f'{short_first_segment}, Yangon, Myanmar')
+            add_term(f'{short_first_segment} Township, Yangon, Myanmar')
+
+    return search_terms
+
+
 def build_alert(location: str, crop: str, weather: WeatherSnapshot, source: str) -> Alert:
     rainfall = weather.rainfall_mm_next_3_days
     temp = weather.max_temperature_c_next_3_days
@@ -724,16 +798,14 @@ async def geocode_location(query: str) -> dict:
     if cached_match:
         return cached_match
 
-    search_terms = [normalized_query]
-    if normalized_query and 'myanmar' not in normalized_query.lower():
-        search_terms.append(f'{normalized_query}, Myanmar')
+    search_terms = _build_geocode_search_terms(query)
 
     for search_term in search_terms:
         payload = await fetch_json(
             GEOCODING_API_URL,
             {
                 'name': search_term,
-                'count': 5,
+                'count': 10,
                 'language': 'en',
                 'format': 'json',
                 'countryCode': 'MM',
@@ -791,12 +863,14 @@ async def fetch_weather_snapshot(latitude: float, longitude: float) -> WeatherSn
 
 
 async def build_live_alert(request: PredictRequest) -> Alert:
+    location_item = _find_location_item(request.location)
+
     if request.latitude is not None and request.longitude is not None:
-        resolved_location = _normalize_myanmar_query(request.location)
+        resolved_location = _format_location_item_display(location_item) if location_item else _normalize_myanmar_query(request.location)
         weather = await fetch_weather_snapshot(latitude=request.latitude, longitude=request.longitude)
     else:
         location_match = await geocode_location(request.location)
-        resolved_location = _format_location_name(location_match)
+        resolved_location = _format_location_item_display(location_item) if location_item else _format_location_name(location_match)
         weather = await fetch_weather_snapshot(
             latitude=float(location_match['latitude']),
             longitude=float(location_match['longitude']),
@@ -877,19 +951,11 @@ def _pick_background_greeting() -> dict:
     return random.choice(BACKGROUND_CUTE_GREETING_MESSAGES)
 
 
-def _temperature_change_copy(alert: Alert, delta: float) -> dict:
+def _hottest_temperature_copy(alert: Alert) -> dict:
     current_temperature = round(float(alert.weather.current_temperature_c), 1)
-    magnitude = abs(delta)
-
-    if delta > 0:
-        return {
-            'title': f'{alert.location} ပိုပူလာနေပါသည်',
-            'body': f'အခု {current_temperature}°C ရောက်နေပြီး {magnitude:.1f}°C တက်လာပါပြီ။ {alert.crop} စိုက်ခင်းအတွက် ရေပြင်ဆင်ထားပါ။',
-        }
-
     return {
-        'title': f'{alert.location} အပူနည်းလာနေပါသည်',
-        'body': f'အခု {current_temperature}°C ဖြစ်နေပြီး {magnitude:.1f}°C လျော့သွားပါပြီ။ ရာသီဥတုအပြောင်းအလဲကို ဆက်စောင့်ကြည့်ပါ။',
+        'title': f'{alert.location} သည် လက်ရှိအပူဆုံးနေရာဖြစ်ပါသည်',
+        'body': f'စောင့်ကြည့်နေသည့်နေရာများထဲတွင် {current_temperature}°C ဖြင့် အပူချိန်အမြင့်ဆုံးဖြစ်နေပါသည်။ {alert.crop} စိုက်ခင်းအတွက် ရေသွင်းစနစ်နှင့် အပူကာကွယ်ရေးကို ပြင်ဆင်ပါ။',
     }
 
 
@@ -897,7 +963,7 @@ async def run_background_push_cycle() -> PushJobResponse:
     app_notifications_sent = 0
     temperature_notifications_sent = 0
     failures = 0
-    strongest_temperature_change = None
+    hottest_temperature = None
     subscriptions = await list_push_subscriptions()
     app_subscriptions = [
         subscription for subscription in subscriptions
@@ -933,44 +999,30 @@ async def run_background_push_cycle() -> PushJobResponse:
         failures += failed
 
     if temperature_subscriptions:
-        previous_state = await get_notification_state('temperature-watch')
-        previous_temperatures = previous_state.get('temperatures') if isinstance(previous_state, dict) else {}
-        next_temperatures: dict[str, float] = {}
-
         alerts = await get_watchlist_alerts()
-        strongest_alert = None
-
-        for alert in alerts:
-            current_temperature = alert.weather.current_temperature_c
-            next_temperatures[alert.location] = current_temperature
-            previous_temperature = previous_temperatures.get(alert.location)
-
-            if previous_temperature is None:
-                continue
-
-            delta = round(float(current_temperature) - float(previous_temperature), 1)
-            if abs(delta) < BACKGROUND_TEMPERATURE_CHANGE_C:
-                continue
-
-            if strongest_temperature_change is None or abs(delta) > abs(strongest_temperature_change):
-                strongest_temperature_change = delta
-                strongest_alert = alert
-
-        await save_notification_state(
-            'temperature-watch',
-            {
-                'temperatures': next_temperatures,
-                'updated_at': datetime.now(timezone.utc).isoformat(),
-            },
+        hottest_alert = max(
+            alerts,
+            key=lambda alert: alert.weather.current_temperature_c,
+            default=None,
         )
 
-        if strongest_alert and strongest_temperature_change is not None:
-            temperature_copy = _temperature_change_copy(strongest_alert, strongest_temperature_change)
+        if hottest_alert:
+            hottest_temperature = round(float(hottest_alert.weather.current_temperature_c), 1)
+            await save_notification_state(
+                'temperature-watch',
+                {
+                    'hottest_location': hottest_alert.location,
+                    'hottest_temperature_c': hottest_temperature,
+                    'updated_at': datetime.now(timezone.utc).isoformat(),
+                },
+            )
+
+            temperature_copy = _hottest_temperature_copy(hottest_alert)
             delivered, failed = await send_push_notification_to_subscriptions(
                 temperature_subscriptions,
                 temperature_copy['title'],
                 temperature_copy['body'],
-                tag=f'temperature-change-{strongest_alert.location}',
+                tag=f'hottest-temperature-{hottest_alert.location}',
                 data={'path': '/#', 'view': 'alerts'},
                 renotify=True,
                 require_interaction=False,
@@ -983,7 +1035,7 @@ async def run_background_push_cycle() -> PushJobResponse:
         app_notifications_sent=app_notifications_sent,
         temperature_notifications_sent=temperature_notifications_sent,
         failures=failures,
-        strongest_temperature_change_c=strongest_temperature_change,
+        strongest_temperature_change_c=hottest_temperature,
     )
 
 
