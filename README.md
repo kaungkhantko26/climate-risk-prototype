@@ -1,9 +1,9 @@
 # Climate Risk Prediction System Prototype
 
 This is a hackathon-ready prototype with:
-- **FastAPI backend** for live climate risk detection
+- **FastAPI backend** for climate risk prediction
 - **React + Vite frontend** for the farmer dashboard
-- **Open-Meteo geocoding + forecast integration** for real-world weather inputs
+- **Simple rule-based logic** for flood, drought, and storm alerts
 - **SMS-ready alert output** for low-connectivity scenarios
 
 ## Folder structure
@@ -15,13 +15,11 @@ This is a hackathon-ready prototype with:
 
 ## How it works
 
-The frontend sends a Myanmar location name and crop to the backend `/predict` endpoint.
-
-The backend:
-- geocodes the location with Open-Meteo using a Myanmar-only country filter
-- pulls live forecast data for the next 3 days
-- aggregates rainfall, temperature, wind, and surface soil moisture
-- applies rule-based climate risk logic for flood, drought, and storm exposure
+The frontend sends weather inputs to the backend `/predict` endpoint.
+The backend applies simple logic:
+- high rainfall + high soil moisture -> flood risk
+- very low rainfall + high temperature -> drought risk
+- high wind or heavy rain -> storm warning
 
 Then it returns:
 - risk level
@@ -29,7 +27,6 @@ Then it returns:
 - timing window
 - farmer advice
 - SMS message
-- live weather snapshot used for the decision
 
 ## Run locally
 
@@ -55,130 +52,19 @@ npm run dev
 
 Then open the local Vite URL in your browser.
 
-The frontend will call `http://127.0.0.1:8000` automatically in local development.
-The backend needs outbound internet access because it fetches live Myanmar weather and geocoding data from Open-Meteo.
-
-## GitHub Pages deploy
-
-This repo includes a GitHub Actions workflow at `.github/workflows/deploy.yml` that deploys the `frontend/` app to GitHub Pages on every push to `main`.
-
-The production deploy is configured for the custom domain `climate-risk-prototype.kaungkhantko.top`.
-
-If you only deploy the frontend without a working backend URL, live weather detection will not work.
-
-If you deploy the FastAPI backend somewhere else, add a GitHub repository variable named `VITE_API_BASE_URL` with your backend URL and the Pages build will use it.
-
-## Backend deploy from GitHub
-
-GitHub Pages cannot run Python or FastAPI. GitHub's current Pages docs describe Pages as a static hosting service and explicitly note that GitHub Pages does not support server-side languages such as Python:
-- https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages
-- https://docs.github.com/enterprise-cloud@latest/pages/getting-started-with-github-pages/creating-a-github-pages-site
-
-This repo is prepared for a free Vercel Hobby deployment of the FastAPI backend:
-- `backend/app.py` exports the FastAPI app using a Vercel-supported entrypoint name
-- `backend/main.py` includes `ALLOWED_ORIGINS` support for the local frontend and `https://climate-risk-prototype.kaungkhantko.top`
-- `backend/main.py` includes `/health` for deployment checks
-- `backend/main.py` fetches live Myanmar weather using Open-Meteo geocoding and forecast APIs
-
-Open-Meteo docs used by this implementation:
-- https://open-meteo.com/en/docs
-- https://open-meteo.com/en/docs/geocoding-api
-
-Vercel's current docs say FastAPI can be deployed on Vercel and that supported FastAPI entrypoints include `app.py`, `index.py`, and `server.py`:
-- https://vercel.com/docs/frameworks/backend/fastapi
-
-Vercel's current pricing/docs say the Hobby plan is free:
-- https://vercel.com/pricing
-- https://vercel.com/docs/plans/hobby
-
-To use the live backend with the GitHub Pages frontend:
-
-1. In Vercel, import `kaungkhantko26/climate-risk-prototype` from GitHub.
-2. Set the Vercel project's `Root Directory` to `backend`.
-3. Deploy with the default FastAPI detection. The exported app entrypoint is `backend/app.py`.
-4. Copy the deployed API URL, for example `https://climate-risk-prototype-api.vercel.app`.
-5. In GitHub, open this repo's `Settings > Secrets and variables > Actions > Variables`.
-6. Add `VITE_API_BASE_URL` with your deployed backend URL.
-7. Re-run the Pages workflow or push a new commit so the frontend rebuild picks up the API URL.
-
-## Background notifications with Supabase
-
-This repo now supports real background web push notifications so users can receive notifications even when the app is not open, as long as their browser/platform supports Web Push and they already granted notification permission.
-
-Files involved:
-- `backend/main.py` - web push config, subscription storage, admin broadcast push, and scheduled background sender
-- `frontend/public/notification-sw.js` - service worker push handler
-- `frontend/src/App.jsx` - push subscription setup and separate app/temperature notification channels
-- `supabase/schema.sql` - Supabase tables for stored subscriptions and notification state
-- `.github/workflows/background-push.yml` - scheduled trigger every 5 minutes
-
-### 1) Create the Supabase tables
-
-In Supabase SQL Editor, run:
-
-```sql
--- from supabase/schema.sql
-```
-
-Then paste the contents of `supabase/schema.sql`.
-
-### 2) Generate VAPID keys
-
-One simple way is:
-
-```bash
-npx web-push generate-vapid-keys
-```
-
-This gives you:
-- a public key
-- a private key
-
-### 3) Set backend environment variables
-
-On your backend host, set:
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `VAPID_PUBLIC_KEY`
-- `VAPID_PRIVATE_KEY`
-- `VAPID_SUBJECT`
-  - example: `mailto:you@example.com`
-- `BACKGROUND_PUSH_CRON_SECRET`
-
-Then redeploy the backend.
-
-### 4) Set GitHub Actions secret for the scheduled sender
-
-In GitHub repo settings, add:
-- `BACKGROUND_PUSH_CRON_SECRET` as an Actions secret
-
-The workflow already uses `VITE_API_BASE_URL` to call your backend every 5 minutes.
-
-### 5) What users get
-
-After a user opens the site and allows notifications:
-- the browser registers a real push subscription
-- the subscription is stored in Supabase
-- admin broadcasts from `/noti` can reach the user even when the app is closed
-- the scheduled workflow can send background greeting notifications and temperature change notifications every 5 minutes
-
-### 6) Important limitation
-
-This depends on browser/platform support for Web Push. If a platform or browser disables background push for that user, the app cannot override that behavior.
-
 ## Demo script
 
 1. Open the dashboard and show the sample alerts.
-2. Explain that the alerts come from live Myanmar geocoding and forecast data.
-3. Enter a new Myanmar location and choose a crop.
-4. Click **Detect Risk**.
-5. Show the returned weather snapshot and SMS preview.
+2. Explain that the alerts come from the prediction API.
+3. Change rainfall / temperature / soil moisture values.
+4. Click **Generate Prediction**.
+5. Show the updated alert and SMS preview.
 6. Conclude with how this supports smallholder farmers with low-connectivity delivery.
 
 ## Next upgrades
 
 - Replace rule logic with a trained ML model
+- Add real weather API ingestion
 - Add Burmese language support
-- Add crop-specific recommendations
+- Add crop-specific recommendationsa
 - Add district-level map view
-- Add historical trend comparisons and rainfall anomaly scoring
