@@ -17,6 +17,7 @@ const SYSTEM_NOTIFICATION_DELTA_C = 1.5
 const SYSTEM_NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000
 const CUTE_GREETING_INTERVAL_MS = 5 * 60 * 1000
 const ADMIN_BROADCAST_POLL_MS = 15000
+const INSTALL_GATE_STORAGE_KEY = 'climate-monitor-install-gate-complete'
 const ADMIN_VIEW_ID = 'admin-noti'
 const ICON_VERSION = '20260321'
 const DEFAULT_NOTIFICATION_CHANNELS = {
@@ -375,6 +376,19 @@ const getStoredNotificationChannels = () => {
   }
 }
 
+const getStoredInstallGateComplete = () => {
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem(INSTALL_GATE_STORAGE_KEY) === '1'
+}
+
+const isIosDevice = () => {
+  if (typeof window === 'undefined') return false
+
+  const userAgent = window.navigator.userAgent || ''
+  const platform = window.navigator.platform || ''
+  return /iphone|ipad|ipod/i.test(userAgent) || (platform === 'MacIntel' && window.navigator.maxTouchPoints > 1)
+}
+
 const urlBase64ToUint8Array = (base64String) => {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -414,6 +428,9 @@ export default function App() {
   )
   const [notificationChannels, setNotificationChannels] = useState(getStoredNotificationChannels)
   const [isStandaloneMode, setIsStandaloneMode] = useState(isStandaloneApp)
+  const [installGateComplete, setInstallGateComplete] = useState(getStoredInstallGateComplete)
+  const [installGateStatus, setInstallGateStatus] = useState('')
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null)
   const [notificationPromptDismissed, setNotificationPromptDismissed] = useState(false)
   const temperatureHistoryRef = useRef(new Map())
   const lastSystemNotificationAtRef = useRef(0)
@@ -520,6 +537,37 @@ export default function App() {
       mediaQuery.removeListener(syncStandalone)
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault()
+      setDeferredInstallPrompt(event)
+      setInstallGateStatus('Install button ကို နှိပ်ပြီး web app ကို Home Screen သို့ ထည့်နိုင်ပါသည်။')
+    }
+
+    const handleAppInstalled = () => {
+      setDeferredInstallPrompt(null)
+      setInstallGateStatus('Web app ကို ထည့်ပြီးပါပြီ။ Home Screen က app ကိုဖွင့်ပါ။')
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.addEventListener('appinstalled', handleAppInstalled)
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', handleAppInstalled)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isStandaloneMode || typeof window === 'undefined') return
+
+    window.localStorage.setItem(INSTALL_GATE_STORAGE_KEY, '1')
+    setInstallGateComplete(true)
+    setInstallGateStatus('')
+  }, [isStandaloneMode])
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
@@ -901,6 +949,9 @@ export default function App() {
     () => locationOptions.find((option) => option.query === form.location) || null,
     [locationOptions, form.location],
   )
+  const usesIosInstallFlow = isIosDevice()
+  const installGateActive = !installGateComplete && !isStandaloneMode
+  const installGateCanPrompt = Boolean(deferredInstallPrompt)
   const currentLocationLabel = currentAlert?.location || form.location || 'Myanmar Live Feed'
   const currentTemperatureLabel = formatValue(currentAlert?.weather?.current_temperature_c, '°C', 1)
   const notificationStatusLabel = notificationPermission === 'granted'
@@ -1276,6 +1327,41 @@ export default function App() {
         maximumAge: 300000,
       },
     )
+  }
+
+  const refreshInstallGateStatus = () => {
+    if (isStandaloneApp()) {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(INSTALL_GATE_STORAGE_KEY, '1')
+      }
+      setInstallGateComplete(true)
+      setInstallGateStatus('')
+      return
+    }
+
+    setInstallGateStatus('App ကို Home Screen ကနေ ဖွင့်ထားမှသာ dashboard ကို ဝင်နိုင်ပါမည်။')
+  }
+
+  const triggerInstallPrompt = async () => {
+    if (!deferredInstallPrompt) {
+      setInstallGateStatus('ဒီ browser မှာ install prompt မပြသနိုင်သေးပါ။ Chrome သို့မဟုတ် Edge ကိုသုံးပြီး ထည့်သွင်းပါ။')
+      return
+    }
+
+    try {
+      await deferredInstallPrompt.prompt()
+      const choice = await deferredInstallPrompt.userChoice
+      setDeferredInstallPrompt(null)
+
+      if (choice?.outcome === 'accepted') {
+        setInstallGateStatus('Web app install ကိုလက်ခံပြီးပါပြီ။ ယခု Home Screen က app ကိုဖွင့်ပါ။')
+        return
+      }
+
+      setInstallGateStatus('Install ကိုမပြီးသေးပါ။ App ကိုသုံးရန် Home Screen install လုပ်ရန် လိုအပ်ပါသည်။')
+    } catch {
+      setInstallGateStatus('Install prompt ကိုဖွင့်မရပါ။ နောက်တစ်ကြိမ် ထပ်ကြိုးစားပါ။')
+    }
   }
 
   const renderHomeView = () => (
@@ -2118,6 +2204,94 @@ export default function App() {
 
   return (
     <>
+      {installGateActive ? (
+        <div className="fixed inset-0 z-[120] bg-[radial-gradient(circle_at_top,#f7f2c5_0%,#fbfbe2_45%,#efefd7_100%)] px-6 py-8 overflow-y-auto">
+          <div className="min-h-full max-w-3xl mx-auto flex items-center justify-center">
+            <div className="w-full bg-white/95 backdrop-blur-xl rounded-[2rem] border border-outline/10 shadow-[0_24px_80px_rgba(27,29,14,0.18)] p-6 md:p-10 space-y-6">
+              <div className="flex items-start gap-4">
+                <div className="w-16 h-16 rounded-3xl bg-primary-container text-primary flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-4xl">download</span>
+                </div>
+                <div>
+                  <div className="text-xs uppercase font-label text-primary tracking-[0.24em]">Install Required</div>
+                  <h2 className="mt-2 text-3xl md:text-4xl font-headline font-extrabold text-on-surface">
+                    Home Screen app အဖြစ် install လုပ်ပြီးမှ ဝင်နိုင်ပါမည်
+                  </h2>
+                  <p className="mt-3 text-base md:text-lg text-on-surface-variant font-body leading-8">
+                    Climate Monitor ကို first-time visitor အဖြစ် browser ထဲကနေ တိုက်ရိုက်မသုံးနိုင်ပါ။ Web app ကို Home Screen ပေါ်တင်ပြီး app mode ဖြင့်ဖွင့်ထားမှ dashboard ကို ဆက်လက်အသုံးပြုနိုင်ပါမည်။
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-3xl bg-surface-container-low p-5 border border-outline/10">
+                  <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Why</div>
+                  <div className="mt-2 font-headline font-bold text-xl">App mode only</div>
+                  <p className="mt-2 text-sm text-on-surface-variant font-body leading-7">
+                    Notification, offline cache, and app-style experience တွေကို အပြည့်အဝသုံးရန် Home Screen install လိုအပ်ပါသည်။
+                  </p>
+                </div>
+                <div className="rounded-3xl bg-surface-container-low p-5 border border-outline/10">
+                  <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Status</div>
+                  <div className="mt-2 font-headline font-bold text-xl">
+                    {installGateCanPrompt ? 'Install prompt အဆင်သင့်ဖြစ်ပါပြီ' : usesIosInstallFlow ? 'Manual Home Screen steps လိုအပ်ပါသည်' : 'Browser install prompt ကိုစောင့်နေပါသည်'}
+                  </div>
+                  <p className="mt-2 text-sm text-on-surface-variant font-body leading-7">
+                    {installGateStatus || (usesIosInstallFlow
+                      ? 'Safari Share menu က Add to Home Screen ကို သုံးပါ။'
+                      : 'Install button ပေါ်လာလျှင် နှိပ်ပြီး app ကို Home Screen ပေါ်တင်ပါ။')}
+                  </p>
+                </div>
+              </div>
+
+              {usesIosInstallFlow ? (
+                <div className="rounded-3xl bg-primary-container/40 p-5 border border-primary/10">
+                  <div className="text-sm font-headline font-bold text-primary">iPhone / iPad steps</div>
+                  <div className="mt-3 space-y-2 text-sm text-on-surface-variant font-body leading-7">
+                    <p>1. Safari bottom or top bar မှ <span className="font-bold text-on-surface">Share</span> ကိုနှိပ်ပါ။</p>
+                    <p>2. <span className="font-bold text-on-surface">Add to Home Screen</span> ကိုရွေးပါ။</p>
+                    <p>3. Home Screen ပေါ်က <span className="font-bold text-on-surface">Climate Monitor</span> app icon ကိုဖွင့်ပါ။</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-3xl bg-primary-container/40 p-5 border border-primary/10">
+                  <div className="text-sm font-headline font-bold text-primary">Android / desktop install</div>
+                  <div className="mt-3 space-y-2 text-sm text-on-surface-variant font-body leading-7">
+                    <p>1. Install button ကိုနှိပ်ပါ။</p>
+                    <p>2. Browser prompt မှ install ကိုအတည်ပြုပါ။</p>
+                    <p>3. Install ပြီးသွားလျှင် Home Screen သို့မဟုတ် apps list မှ Climate Monitor ကိုဖွင့်ပါ။</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  className="flex-1 rounded-full bg-primary px-6 py-4 text-base font-headline font-bold text-on-primary shadow-lg hover:shadow-xl transition-all disabled:opacity-60"
+                  disabled={!installGateCanPrompt}
+                  onClick={() => {
+                    void triggerInstallPrompt()
+                  }}
+                  type="button"
+                >
+                  {installGateCanPrompt ? 'Web app ကို install လုပ်ရန်' : 'Install prompt မရသေးပါ'}
+                </button>
+                <button
+                  className="flex-1 rounded-full border border-outline/10 bg-white px-6 py-4 text-base font-headline font-bold text-primary hover:bg-primary hover:text-white transition-all"
+                  onClick={refreshInstallGateStatus}
+                  type="button"
+                >
+                  Home Screen ကဖွင့်ပြီးပြီ
+                </button>
+              </div>
+
+              <div className="rounded-3xl bg-surface-container-low p-5 border border-outline/10 text-sm text-on-surface-variant font-body leading-7">
+                Admin page ကိုသာ browser ထဲကနေ ဆက်သုံးနိုင်ပြီး normal dashboard usage အတွက် install gate ကိုဖြတ်ရပါမည်။
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <aside className="hidden xl:flex fixed left-0 top-0 h-full z-40 flex-col bg-surface-container-low w-72 border-r border-outline/10">
         <div className="p-8">
           <div className="flex items-center gap-3 mb-2">
