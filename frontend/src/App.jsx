@@ -805,8 +805,7 @@ export default function App() {
       lastGreetingIndexRef.current = nextGreeting.index
 
       await showSystemNotification(nextGreeting.title, nextGreeting.body, {
-        tag: 'cute-greeting',
-        renotify: true,
+        tag: `cute-greeting-${Date.now()}`,
         data: {
           path: '/#',
           view: 'home',
@@ -814,6 +813,7 @@ export default function App() {
       })
     }
 
+    void sendCuteGreeting()
     const intervalId = window.setInterval(() => {
       void sendCuteGreeting()
     }, CUTE_GREETING_INTERVAL_MS)
