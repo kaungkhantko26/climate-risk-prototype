@@ -20,6 +20,8 @@ const ADMIN_BROADCAST_POLL_MS = 15000
 const INSTALL_GATE_STORAGE_KEY = 'climate-monitor-install-gate-complete'
 const ADMIN_VIEW_ID = 'admin-noti'
 const ICON_VERSION = '20260321'
+const TAB_TRANSITION_SWITCH_MS = 180
+const TAB_TRANSITION_TOTAL_MS = 760
 const DEFAULT_NOTIFICATION_CHANNELS = {
   app: true,
   temperature: true,
@@ -435,6 +437,7 @@ export default function App() {
   )
   const [notificationChannels, setNotificationChannels] = useState(getStoredNotificationChannels)
   const [isStandaloneMode, setIsStandaloneMode] = useState(isStandaloneApp)
+  const [tabTransition, setTabTransition] = useState(null)
   const [installGateComplete, setInstallGateComplete] = useState(getStoredInstallGateComplete)
   const [installGateStatus, setInstallGateStatus] = useState('')
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null)
@@ -444,6 +447,7 @@ export default function App() {
   const systemNotificationBootstrappedRef = useRef(false)
   const lastGreetingIndexRef = useRef(-1)
   const deliveredBroadcastIdRef = useRef('')
+  const tabTransitionTimeoutsRef = useRef([])
 
   const notificationsSupported = getNotificationSupport()
 
@@ -611,6 +615,11 @@ export default function App() {
       window.removeEventListener('hashchange', syncRequestedView)
       window.removeEventListener('popstate', syncRequestedView)
     }
+  }, [])
+
+  useEffect(() => () => {
+    tabTransitionTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
+    tabTransitionTimeoutsRef.current = []
   }, [])
 
   useEffect(() => {
@@ -1230,11 +1239,44 @@ export default function App() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  const navigateToView = (nextView, options = {}) => {
+    const { skipTransition = false } = options
+    if (!nextView) return
+
+    tabTransitionTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
+    tabTransitionTimeoutsRef.current = []
+
+    if (skipTransition || nextView === ADMIN_VIEW_ID) {
+      setTabTransition(null)
+      setActiveView(nextView)
+      return
+    }
+
+    if (nextView === activeView) {
+      return
+    }
+
+    const nextViewMeta = views.find((view) => view.id === nextView)
+    setTabTransition({
+      viewId: nextView,
+      label: nextViewMeta?.label || 'စာမျက်နှာအသစ်',
+    })
+
+    const switchTimeoutId = window.setTimeout(() => {
+      setActiveView(nextView)
+    }, TAB_TRANSITION_SWITCH_MS)
+    const clearTimeoutId = window.setTimeout(() => {
+      setTabTransition(null)
+    }, TAB_TRANSITION_TOTAL_MS)
+
+    tabTransitionTimeoutsRef.current = [switchTimeoutId, clearTimeoutId]
+  }
+
   const focusAlert = (alert, nextView = activeView) => {
     setSelectedAlert(alert)
     setGeneratedAlert(null)
     setForm((prev) => ({ ...prev, crop: alert.crop }))
-    setActiveView(nextView)
+    navigateToView(nextView)
   }
 
   const requestPrediction = async (payload, nextView) => {
@@ -1274,7 +1316,7 @@ export default function App() {
           ? prev.location
           : payload.location,
       }))
-      setActiveView(nextView)
+      navigateToView(nextView)
       setStatus(`${data.location} အတွက် live forecast ကို ရရှိပါပြီ။`)
     } catch (error) {
       setGeneratedAlert(null)
@@ -1409,7 +1451,7 @@ export default function App() {
             <div className="flex gap-3">
               <button
                 className="bg-white/20 hover:bg-white/30 backdrop-blur-md px-5 py-3 rounded-full font-headline font-bold transition-all flex items-center gap-2 text-sm"
-                onClick={() => setActiveView('map')}
+                onClick={() => navigateToView('map')}
                 type="button"
               >
                 <span className="material-symbols-outlined text-lg">map</span>
@@ -1425,7 +1467,7 @@ export default function App() {
           <button
             key={action.label}
             className="bg-surface-container-low p-4 rounded-2xl flex flex-col items-center justify-center gap-2 border border-outline/5 hover:bg-white transition-all group"
-            onClick={() => setActiveView(action.targetView)}
+            onClick={() => navigateToView(action.targetView)}
             type="button"
           >
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${action.iconClass}`}>
@@ -1683,7 +1725,7 @@ export default function App() {
           </h3>
           <button
             className="text-primary font-headline font-bold text-sm hover:underline"
-            onClick={() => setActiveView('alerts')}
+            onClick={() => navigateToView('alerts')}
             type="button"
           >
             အားလုံးကြည့်ရန်
@@ -2321,6 +2363,26 @@ export default function App() {
         </div>
       ) : null}
 
+      {tabTransition ? (
+        <div className="fixed inset-0 z-[110] bg-[radial-gradient(circle_at_top,rgba(251,251,226,0.92)_0%,rgba(245,245,220,0.88)_48%,rgba(234,234,209,0.9)_100%)] backdrop-blur-md flex items-center justify-center px-6">
+          <div className="w-full max-w-md rounded-[2rem] border border-primary/10 bg-white/72 px-8 py-8 text-center shadow-[0_24px_80px_rgba(45,106,79,0.12)]">
+            <div className="mx-auto leaf-wave-loader" aria-hidden="true">
+              <div className="leaf-wave-loader__line"></div>
+              <span className="material-symbols-outlined leaf-wave-loader__leaf text-[2rem]" style={{ left: '6%', animationDelay: '0ms' }}>eco</span>
+              <span className="material-symbols-outlined leaf-wave-loader__leaf text-[2.4rem]" style={{ left: '24%', animationDelay: '140ms' }}>eco</span>
+              <span className="material-symbols-outlined leaf-wave-loader__leaf text-[2.8rem]" style={{ left: '43%', animationDelay: '280ms' }}>eco</span>
+              <span className="material-symbols-outlined leaf-wave-loader__leaf text-[2.4rem]" style={{ left: '64%', animationDelay: '420ms' }}>eco</span>
+              <span className="material-symbols-outlined leaf-wave-loader__leaf text-[2rem]" style={{ left: '82%', animationDelay: '560ms' }}>eco</span>
+            </div>
+            <div className="mt-5 text-xs uppercase tracking-[0.26em] font-label text-primary/80">Leaf Wave</div>
+            <div className="mt-3 font-headline text-2xl font-extrabold text-primary">{tabTransition.label}</div>
+            <p className="mt-3 text-sm font-body leading-7 text-on-surface-variant">
+              စာမျက်နှာကို ညင်သာစွာ ပြောင်းနေပါသည်။
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <aside className="hidden xl:flex fixed left-0 top-0 h-full z-40 flex-col bg-surface-container-low w-72 border-r border-outline/10">
         <div className="p-8">
           <div className="flex items-center gap-3 mb-2">
@@ -2341,7 +2403,7 @@ export default function App() {
                     ? 'w-full flex items-center gap-4 bg-primary text-on-primary px-6 py-4 rounded-2xl shadow-lg transition-all font-headline'
                     : 'w-full flex items-center gap-4 text-on-surface-variant px-6 py-4 hover:bg-surface-container rounded-2xl transition-all font-headline'
                 }
-                onClick={() => setActiveView(item.id)}
+                onClick={() => navigateToView(item.id)}
                 type="button"
               >
                 <span
@@ -2380,7 +2442,7 @@ export default function App() {
               </button>
               <button
                 className="p-2.5 rounded-full hover:bg-surface-container-high text-on-surface-variant relative transition-all active:scale-90"
-                onClick={() => setActiveView('alerts')}
+                onClick={() => navigateToView('alerts')}
                 type="button"
               >
                 <span className="material-symbols-outlined">notifications</span>
@@ -2485,7 +2547,7 @@ export default function App() {
                   ? 'flex flex-col items-center gap-1 text-primary bg-primary-container/30 px-6 py-2 rounded-2xl transition-all active:scale-90'
                   : 'flex flex-col items-center gap-1 text-on-surface-variant opacity-60 transition-all active:scale-90'
               }
-              onClick={() => setActiveView(item.id)}
+              onClick={() => navigateToView(item.id)}
               type="button"
             >
               <span

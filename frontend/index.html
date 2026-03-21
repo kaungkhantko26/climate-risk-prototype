@@ -76,6 +76,57 @@
       .material-symbols-outlined {
         font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
       }
+      @keyframes leaf-wave-float {
+        0%, 100% { transform: translate3d(0, 0, 0) rotate(-8deg) scale(0.94); opacity: 0.42; }
+        25% { transform: translate3d(8px, -12px, 0) rotate(2deg) scale(1); opacity: 0.9; }
+        50% { transform: translate3d(18px, -3px, 0) rotate(10deg) scale(1.08); opacity: 1; }
+        75% { transform: translate3d(28px, 10px, 0) rotate(2deg) scale(0.98); opacity: 0.7; }
+      }
+      @keyframes leaf-wave-line {
+        0%, 100% { transform: scaleX(0.92) translateY(0); opacity: 0.35; }
+        50% { transform: scaleX(1.03) translateY(-4px); opacity: 0.85; }
+      }
+      @keyframes leaf-wave-glow {
+        0%, 100% { transform: scale(0.96); opacity: 0.25; }
+        50% { transform: scale(1.04); opacity: 0.55; }
+      }
+      .leaf-wave-loader {
+        position: relative;
+        width: min(19rem, 78vw);
+        height: 9rem;
+      }
+      .leaf-wave-loader::before {
+        content: '';
+        position: absolute;
+        inset: 1.8rem 0.4rem 1.8rem;
+        border-radius: 9999px;
+        background:
+          radial-gradient(circle at 25% 50%, rgba(177, 240, 206, 0.95), transparent 42%),
+          radial-gradient(circle at 75% 50%, rgba(45, 106, 79, 0.18), transparent 36%),
+          linear-gradient(90deg, rgba(45, 106, 79, 0.08), rgba(177, 240, 206, 0.55), rgba(45, 106, 79, 0.08));
+        filter: blur(14px);
+        animation: leaf-wave-glow 1.9s ease-in-out infinite;
+      }
+      .leaf-wave-loader__line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        height: 1.1rem;
+        border-radius: 9999px;
+        background: linear-gradient(90deg, rgba(45, 106, 79, 0.04), rgba(45, 106, 79, 0.35), rgba(177, 240, 206, 0.85), rgba(45, 106, 79, 0.35), rgba(45, 106, 79, 0.04));
+        transform: translateY(-50%);
+        animation: leaf-wave-line 1.45s ease-in-out infinite;
+      }
+      .leaf-wave-loader__leaf {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        color: #2D6A4F;
+        filter: drop-shadow(0 10px 24px rgba(45, 106, 79, 0.16));
+        animation: leaf-wave-float 1.45s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
     </style>
   </head>
   <body class="bg-background text-on-surface min-h-screen pb-24 xl:pb-0 xl:pl-72">
