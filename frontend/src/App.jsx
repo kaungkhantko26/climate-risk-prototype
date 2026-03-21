@@ -2376,9 +2376,6 @@ export default function App() {
             </div>
             <div className="mt-5 text-xs uppercase tracking-[0.26em] font-label text-primary/80">Leaf Wave</div>
             <div className="mt-3 font-headline text-2xl font-extrabold text-primary">{tabTransition.label}</div>
-            <p className="mt-3 text-sm font-body leading-7 text-on-surface-variant">
-              စာမျက်နှာကို ညင်သာစွာ ပြောင်းနေပါသည်။
-            </p>
           </div>
         </div>
       ) : null}
