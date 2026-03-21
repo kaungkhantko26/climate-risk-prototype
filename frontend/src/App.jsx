@@ -572,6 +572,20 @@ export default function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
 
+    const handleStorage = (event) => {
+      if (event.key !== INSTALL_GATE_STORAGE_KEY) return
+      setInstallGateComplete(event.newValue === '1')
+    }
+
+    window.addEventListener('storage', handleStorage)
+    return () => {
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
     deliveredBroadcastIdRef.current = window.localStorage.getItem('climate-monitor-last-admin-broadcast-id') || ''
 
     const syncRequestedView = () => {
@@ -1339,7 +1353,7 @@ export default function App() {
       return
     }
 
-    setInstallGateStatus('App ကို Home Screen ကနေ ဖွင့်ထားမှသာ dashboard ကို ဝင်နိုင်ပါမည်။')
+    setInstallGateStatus('Browser က installed app ကိုတိုက်ရိုက်မဖွင့်နိုင်ပါ။ Home Screen ပေါ်က Climate Monitor icon ကိုနှိပ်ပြီး app mode ဖြင့်ဖွင့်ပါ။')
   }
 
   const triggerInstallPrompt = async () => {
@@ -1354,7 +1368,7 @@ export default function App() {
       setDeferredInstallPrompt(null)
 
       if (choice?.outcome === 'accepted') {
-        setInstallGateStatus('Web app install ကိုလက်ခံပြီးပါပြီ။ ယခု Home Screen က app ကိုဖွင့်ပါ။')
+        setInstallGateStatus('Install ကိုလက်ခံပြီးပါပြီ။ Browser က app ကိုတိုက်ရိုက်မဖွင့်နိုင်သဖြင့် Home Screen ပေါ်က Climate Monitor icon ကိုနှိပ်ပြီးဖွင့်ပါ။')
         return
       }
 
@@ -2244,6 +2258,13 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="rounded-3xl bg-white p-5 border border-outline/10">
+                <div className="text-sm font-headline font-bold text-on-surface">Important browser limit</div>
+                <p className="mt-2 text-sm text-on-surface-variant font-body leading-7">
+                  Install ပြီးသွားလျှင် browser tab က installed Home Screen app ကို တိုက်ရိုက်ဖွင့်မပေးနိုင်ပါ။ Climate Monitor icon ကို Home Screen ပေါ်ကနေ ကိုယ်တိုင်နှိပ်ဖွင့်ရပါမည်။
+                </p>
+              </div>
+
               {usesIosInstallFlow ? (
                 <div className="rounded-3xl bg-primary-container/40 p-5 border border-primary/10">
                   <div className="text-sm font-headline font-bold text-primary">iPhone / iPad steps</div>
@@ -2280,7 +2301,7 @@ export default function App() {
                   onClick={refreshInstallGateStatus}
                   type="button"
                 >
-                  Home Screen ကဖွင့်ပြီးပြီ
+                  App mode ကို စစ်ဆေးရန်
                 </button>
               </div>
 
