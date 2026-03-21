@@ -432,22 +432,22 @@ def build_alert(location: str, crop: str, weather: WeatherSnapshot, source: str)
     wind = weather.max_wind_kph_next_3_days
 
     if rainfall >= 90 and moisture >= 35:
-        risk = 'High Flood Risk'
+        risk = 'ရေကြီးနိုင်မှု မြင့်မား'
         confidence = min(96, int(60 + rainfall / 4 + max(moisture - 30, 0)))
         timing = 'Next 72 hours'
         advice = 'Move inputs to higher ground, clear drainage channels, and delay field work until runoff eases.'
     elif rainfall <= 15 and temp >= 35 and moisture <= 20:
-        risk = 'High Drought Risk'
+        risk = 'မိုးခေါင်နိုင်မှု မြင့်မား'
         confidence = min(94, int(56 + temp + max(20 - moisture, 0) + max(15 - rainfall, 0) / 2))
         timing = 'Next 72 hours'
         advice = 'Prepare irrigation, mulch exposed soil, and reduce transplanting or fertilizer application during peak heat.'
     elif wind >= 45 or rainfall >= 70:
-        risk = 'Storm Warning'
+        risk = 'မိုးသက်လေပြင်း သတိပေးချက်'
         confidence = min(93, int(58 + wind / 1.8 + rainfall / 8))
         timing = 'Next 48 hours'
         advice = 'Secure seedlings, avoid spraying or fertilizer application, and protect stored harvest from gusts and heavy showers.'
     else:
-        risk = 'Moderate Climate Risk'
+        risk = 'အလယ်အလတ် ရာသီဥတုအန္တရာယ်'
         confidence = min(84, int(62 + rainfall / 12 + wind / 12))
         timing = 'Next 5 days'
         advice = 'Keep monitoring the forecast, maintain field drainage, and prepare basic crop protection for changing conditions.'

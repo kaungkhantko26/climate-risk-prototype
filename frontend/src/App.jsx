@@ -91,10 +91,18 @@ const readErrorMessage = async (response, fallbackMessage) => {
   }
 }
 
+const getRiskKind = (risk = '') => {
+  if (risk.includes('ရေကြီး')) return 'flood'
+  if (risk.includes('မိုးခေါင်')) return 'drought'
+  if (risk.includes('မိုးသက်') || risk.includes('လေပြင်း')) return 'storm'
+  return 'moderate'
+}
+
 const badgeClass = (risk) => {
-  if (risk.includes('Flood')) return 'bg-red-100 text-red-700 border-red-200'
-  if (risk.includes('Drought')) return 'bg-orange-100 text-orange-700 border-orange-200'
-  if (risk.includes('Storm')) return 'bg-amber-100 text-amber-700 border-amber-200'
+  const riskKind = getRiskKind(risk)
+  if (riskKind === 'flood') return 'bg-red-100 text-red-700 border-red-200'
+  if (riskKind === 'drought') return 'bg-orange-100 text-orange-700 border-orange-200'
+  if (riskKind === 'storm') return 'bg-amber-100 text-amber-700 border-amber-200'
   return 'bg-blue-100 text-blue-700 border-blue-200'
 }
 
@@ -168,39 +176,41 @@ const getRiskMeta = (alert) => {
     }
   }
 
-  if (alert.risk.includes('Flood')) {
+  const riskKind = getRiskKind(alert.risk)
+
+  if (riskKind === 'flood') {
     return {
       headline: 'ရေကြီးနိုင်မှု မြင့်မားနေပါသည်',
       subline: `${alert.location} အတွက် စိုက်ခင်းကာကွယ်ရေး လိုအပ်နေပါသည်`,
       summary: `${alert.crop} စိုက်ခင်းအတွက် ၃ ရက်အတွင်း မိုးရေ ${formatValue(alert.weather?.rainfall_mm_next_3_days, ' mm', 1)} ရနိုင်ပြီး ရေတင်ခြင်းကို ကြိုတင်ကာကွယ်ရန် လိုအပ်ပါသည်။`,
       icon: 'flood',
-      badge: 'Critical Alert',
+      badge: 'အထူးသတိပေးချက်',
       badgeClassName: 'bg-error text-on-error',
       accentClass: 'bg-error',
       iconPanelClass: 'bg-error-container text-error',
     }
   }
 
-  if (alert.risk.includes('Drought')) {
+  if (riskKind === 'drought') {
     return {
       headline: 'အပူခြောက်သွေ့မှု သတိပေးချက်',
       subline: `${alert.location} တွင် ရေရှားပါးမှု မြင့်တက်နေပါသည်`,
       summary: `${alert.crop} အတွက် မိုးရေ ${formatValue(alert.weather?.rainfall_mm_next_3_days, ' mm', 1)} သာရှိပြီး အပူချိန် ${formatValue(alert.weather?.max_temperature_c_next_3_days, '°C', 1)} အထိ တက်နိုင်ပါသည်။`,
       icon: 'thermostat',
-      badge: 'Critical Alert',
+      badge: 'အထူးသတိပေးချက်',
       badgeClassName: 'bg-error text-on-error',
       accentClass: 'bg-error',
       iconPanelClass: 'bg-error-container text-error',
     }
   }
 
-  if (alert.risk.includes('Storm')) {
+  if (riskKind === 'storm') {
     return {
       headline: 'မိုးသက်လေပြင်း သတိပေးချက်',
       subline: `${alert.location} တွင် လေပြင်းနှင့် မိုးသက်ရောက်နိုင်ပါသည်`,
       summary: `${alert.crop} စိုက်ခင်းအတွက် အများဆုံးလေတိုက်နှုန်း ${formatValue(alert.weather?.max_wind_kph_next_3_days, ' kph', 1)} အထိ ရောက်နိုင်ပြီး အပြင်လုပ်ငန်းများကို လျှော့ချရန် သင့်တော်ပါသည်။`,
       icon: 'thunderstorm',
-      badge: 'Moderate',
+      badge: 'သတိထားရန်',
       badgeClassName: 'bg-secondary-container text-on-secondary-container',
       accentClass: 'bg-secondary',
       iconPanelClass: 'bg-secondary-container text-on-secondary-container',
@@ -212,7 +222,7 @@ const getRiskMeta = (alert) => {
     subline: `${alert.location} တွင် စောင့်ကြည့်ရမည့် အခြေအနေသာ ရှိပါသည်`,
     summary: `${alert.crop} စိုက်ခင်းအတွက် လက်ရှိဒေတာအရ အန္တရာယ် မမြင့်သေးပါ။ သို့သော် ရာသီဥတု ပြောင်းလဲမှုများကို ဆက်လက် စောင့်ကြည့်သင့်ပါသည်။`,
     icon: 'eco',
-    badge: 'Low Risk',
+    badge: 'အန္တရာယ် နည်းပါး',
     badgeClassName: 'bg-primary-container text-on-primary-container',
     accentClass: 'bg-primary',
     iconPanelClass: 'bg-primary-container text-primary',
