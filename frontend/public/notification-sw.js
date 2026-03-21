@@ -6,6 +6,11 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())
 })
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'SKIP_WAITING') return
+  event.waitUntil(self.skipWaiting())
+})
+
 self.addEventListener('push', (event) => {
   const payload = event.data ? event.data.json() : {}
   const title = payload.title || 'Climate Monitor'

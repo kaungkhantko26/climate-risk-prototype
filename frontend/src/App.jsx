@@ -19,6 +19,7 @@ const ADMIN_BROADCAST_POLL_MS = 15000
 const INSTALL_GATE_STORAGE_KEY = 'climate-monitor-install-gate-complete'
 const ADMIN_VIEW_ID = 'admin-noti'
 const ICON_VERSION = '20260321'
+const AUTO_UPDATE_EVENT = 'climate-monitor:auto-update'
 const TAB_TRANSITION_SWITCH_MS = 240
 const TAB_TRANSITION_TOTAL_MS = 12000
 const DEFAULT_NOTIFICATION_CHANNELS = {
@@ -428,6 +429,7 @@ export default function App() {
   const [notificationChannels, setNotificationChannels] = useState(getStoredNotificationChannels)
   const [isStandaloneMode, setIsStandaloneMode] = useState(isStandaloneApp)
   const [tabTransition, setTabTransition] = useState(null)
+  const [isAutoUpdating, setIsAutoUpdating] = useState(false)
   const [installGateComplete, setInstallGateComplete] = useState(getStoredInstallGateComplete)
   const [installGateStatus, setInstallGateStatus] = useState('')
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null)
@@ -602,6 +604,20 @@ export default function App() {
     return () => {
       window.removeEventListener('hashchange', syncRequestedView)
       window.removeEventListener('popstate', syncRequestedView)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    const handleAutoUpdate = (event) => {
+      if (!event.detail?.updating) return
+      setIsAutoUpdating(true)
+    }
+
+    window.addEventListener(AUTO_UPDATE_EVENT, handleAutoUpdate)
+    return () => {
+      window.removeEventListener(AUTO_UPDATE_EVENT, handleAutoUpdate)
     }
   }, [])
 
@@ -2324,6 +2340,23 @@ export default function App() {
                 Admin page ကိုသာ browser ထဲကနေ ဆက်သုံးနိုင်ပြီး normal dashboard usage အတွက် install gate ကိုဖြတ်ရပါမည်။
               </div>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isAutoUpdating ? (
+        <div className="fixed inset-0 z-[120] bg-[radial-gradient(circle_at_top,rgba(251,251,226,0.95)_0%,rgba(245,245,220,0.92)_52%,rgba(234,234,209,0.94)_100%)] backdrop-blur-md flex items-center justify-center px-6">
+          <div className="w-full max-w-sm rounded-[2rem] border border-primary/10 bg-white/76 px-8 py-8 text-center shadow-[0_24px_80px_rgba(45,106,79,0.12)]">
+            <div className="mx-auto leaf-wave-loader" aria-hidden="true">
+              <div className="leaf-wave-loader__line"></div>
+              <span className="material-symbols-outlined leaf-wave-loader__leaf text-[2rem]" style={{ left: '6%', animationDelay: '0ms' }}>eco</span>
+              <span className="material-symbols-outlined leaf-wave-loader__leaf text-[2.4rem]" style={{ left: '24%', animationDelay: '140ms' }}>eco</span>
+              <span className="material-symbols-outlined leaf-wave-loader__leaf text-[2.8rem]" style={{ left: '43%', animationDelay: '280ms' }}>eco</span>
+              <span className="material-symbols-outlined leaf-wave-loader__leaf text-[2.4rem]" style={{ left: '64%', animationDelay: '420ms' }}>eco</span>
+              <span className="material-symbols-outlined leaf-wave-loader__leaf text-[2rem]" style={{ left: '82%', animationDelay: '560ms' }}>eco</span>
+            </div>
+            <div className="mt-5 text-xs uppercase tracking-[0.26em] font-label text-primary/80">Climate Monitor</div>
+            <div className="mt-3 font-headline text-2xl font-extrabold text-primary">အသစ်ပြောင်းနေသည်</div>
           </div>
         </div>
       ) : null}
