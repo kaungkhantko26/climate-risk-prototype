@@ -1411,7 +1411,13 @@ export default function App() {
 
   const renderHomeView = () => (
     <div className="space-y-8">
-      <section className="bg-primary text-on-primary rounded-3xl p-6 md:p-10 shadow-xl relative overflow-hidden">
+      <section
+        className="text-on-primary rounded-3xl p-6 md:p-10 shadow-xl relative overflow-hidden bg-cover bg-center"
+        style={{
+          backgroundImage: `linear-gradient(135deg, rgba(23, 77, 53, 0.84), rgba(45, 106, 79, 0.7)), url(${import.meta.env.BASE_URL}IMG_0077.jpg)`,
+        }}
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_42%)]"></div>
         <div className="absolute right-0 bottom-0 opacity-10 translate-x-1/4 translate-y-1/4">
           <span className="material-symbols-outlined text-[120px]">{currentMeta.icon}</span>
         </div>
