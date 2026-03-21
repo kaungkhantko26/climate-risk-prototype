@@ -389,6 +389,13 @@ const isIosDevice = () => {
   return /iphone|ipad|ipod/i.test(userAgent) || (platform === 'MacIntel' && window.navigator.maxTouchPoints > 1)
 }
 
+const isAndroidPhoneDevice = () => {
+  if (typeof window === 'undefined') return false
+  return /android.+mobile/i.test(window.navigator.userAgent || '')
+}
+
+const shouldUseInstallGate = () => isIosDevice() || isAndroidPhoneDevice()
+
 const urlBase64ToUint8Array = (base64String) => {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -964,7 +971,8 @@ export default function App() {
     [locationOptions, form.location],
   )
   const usesIosInstallFlow = isIosDevice()
-  const installGateActive = !installGateComplete && !isStandaloneMode
+  const installGateTargetDevice = shouldUseInstallGate()
+  const installGateActive = installGateTargetDevice && !installGateComplete && !isStandaloneMode
   const installGateCanPrompt = Boolean(deferredInstallPrompt)
   const currentLocationLabel = currentAlert?.location || form.location || 'Myanmar Live Feed'
   const currentTemperatureLabel = formatValue(currentAlert?.weather?.current_temperature_c, '°C', 1)
@@ -2276,11 +2284,11 @@ export default function App() {
                 </div>
               ) : (
                 <div className="rounded-3xl bg-primary-container/40 p-5 border border-primary/10">
-                  <div className="text-sm font-headline font-bold text-primary">Android / desktop install</div>
+                  <div className="text-sm font-headline font-bold text-primary">Android phone install</div>
                   <div className="mt-3 space-y-2 text-sm text-on-surface-variant font-body leading-7">
                     <p>1. Install button ကိုနှိပ်ပါ။</p>
                     <p>2. Browser prompt မှ install ကိုအတည်ပြုပါ။</p>
-                    <p>3. Install ပြီးသွားလျှင် Home Screen သို့မဟုတ် apps list မှ Climate Monitor ကိုဖွင့်ပါ။</p>
+                    <p>3. Install ပြီးသွားလျှင် Home Screen ပေါ်က Climate Monitor app ကိုဖွင့်ပါ။</p>
                   </div>
                 </div>
               )}
