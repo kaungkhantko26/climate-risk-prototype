@@ -281,6 +281,8 @@ class PushConfigResponse(BaseModel):
 
 
 class PushJobResponse(BaseModel):
+    status: str = 'ok'
+    detail: str | None = None
     app_notifications_sent: int = 0
     temperature_notifications_sent: int = 0
     failures: int = 0
@@ -551,8 +553,8 @@ def _send_web_push_blocking(subscription: dict, payload: dict) -> int | None:
     return getattr(response, 'status_code', None)
 
 
-async def send_push_notification_to_channel(
-    channel: str,
+async def send_push_notification_to_subscriptions(
+    subscriptions: list[dict],
     title: str,
     body: str,
     *,
@@ -564,7 +566,6 @@ async def send_push_notification_to_channel(
     if not get_vapid_private_key() or not get_vapid_public_key():
         raise HTTPException(status_code=503, detail='Web push VAPID keys are not configured.')
 
-    subscriptions = await get_push_subscriptions_for_channel(channel)
     if not subscriptions:
         return 0, 0
 
@@ -596,6 +597,28 @@ async def send_push_notification_to_channel(
             failures += 1
 
     return delivered, failures
+
+
+async def send_push_notification_to_channel(
+    channel: str,
+    title: str,
+    body: str,
+    *,
+    tag: str,
+    data: dict | None = None,
+    renotify: bool = True,
+    require_interaction: bool = False,
+) -> tuple[int, int]:
+    subscriptions = await get_push_subscriptions_for_channel(channel)
+    return await send_push_notification_to_subscriptions(
+        subscriptions,
+        title,
+        body,
+        tag=tag,
+        data=data,
+        renotify=renotify,
+        require_interaction=require_interaction,
+    )
 
 
 async def geocode_location(query: str) -> dict:
@@ -775,66 +798,88 @@ async def run_background_push_cycle() -> PushJobResponse:
     temperature_notifications_sent = 0
     failures = 0
     strongest_temperature_change = None
+    subscriptions = await list_push_subscriptions()
+    app_subscriptions = [
+        subscription for subscription in subscriptions
+        if subscription.get('active', True) and _channel_enabled(subscription, 'app')
+    ]
+    temperature_subscriptions = [
+        subscription for subscription in subscriptions
+        if subscription.get('active', True) and _channel_enabled(subscription, 'temperature')
+    ]
 
-    greeting = _pick_background_greeting()
-    delivered, failed = await send_push_notification_to_channel(
-        'app',
-        greeting['title'],
-        greeting['body'],
-        tag=f'background-greeting-{int(time.time() // BACKGROUND_GREETING_INTERVAL_SECONDS)}',
-        data={'path': '/#', 'view': 'home'},
-        renotify=True,
-        require_interaction=False,
-    )
-    app_notifications_sent += delivered
-    failures += failed
+    if not app_subscriptions and not temperature_subscriptions:
+        return PushJobResponse(
+            status='ok',
+            detail='No active push subscriptions found.',
+            app_notifications_sent=0,
+            temperature_notifications_sent=0,
+            failures=0,
+            strongest_temperature_change_c=None,
+        )
 
-    previous_state = await get_notification_state('temperature-watch')
-    previous_temperatures = previous_state.get('temperatures') if isinstance(previous_state, dict) else {}
-    next_temperatures: dict[str, float] = {}
-
-    alerts = await get_watchlist_alerts()
-    strongest_alert = None
-
-    for alert in alerts:
-        current_temperature = alert.weather.current_temperature_c
-        next_temperatures[alert.location] = current_temperature
-        previous_temperature = previous_temperatures.get(alert.location)
-
-        if previous_temperature is None:
-            continue
-
-        delta = round(float(current_temperature) - float(previous_temperature), 1)
-        if abs(delta) < BACKGROUND_TEMPERATURE_CHANGE_C:
-            continue
-
-        if strongest_temperature_change is None or abs(delta) > abs(strongest_temperature_change):
-            strongest_temperature_change = delta
-            strongest_alert = alert
-
-    await save_notification_state(
-        'temperature-watch',
-        {
-            'temperatures': next_temperatures,
-            'updated_at': datetime.now(timezone.utc).isoformat(),
-        },
-    )
-
-    if strongest_alert and strongest_temperature_change is not None:
-        temperature_copy = _temperature_change_copy(strongest_alert, strongest_temperature_change)
-        delivered, failed = await send_push_notification_to_channel(
-            'temperature',
-            temperature_copy['title'],
-            temperature_copy['body'],
-            tag=f'temperature-change-{strongest_alert.location}',
-            data={'path': '/#', 'view': 'alerts'},
+    if app_subscriptions:
+        greeting = _pick_background_greeting()
+        delivered, failed = await send_push_notification_to_subscriptions(
+            app_subscriptions,
+            greeting['title'],
+            greeting['body'],
+            tag=f'background-greeting-{int(time.time() // BACKGROUND_GREETING_INTERVAL_SECONDS)}',
+            data={'path': '/#', 'view': 'home'},
             renotify=True,
             require_interaction=False,
         )
-        temperature_notifications_sent += delivered
+        app_notifications_sent += delivered
         failures += failed
 
+    if temperature_subscriptions:
+        previous_state = await get_notification_state('temperature-watch')
+        previous_temperatures = previous_state.get('temperatures') if isinstance(previous_state, dict) else {}
+        next_temperatures: dict[str, float] = {}
+
+        alerts = await get_watchlist_alerts()
+        strongest_alert = None
+
+        for alert in alerts:
+            current_temperature = alert.weather.current_temperature_c
+            next_temperatures[alert.location] = current_temperature
+            previous_temperature = previous_temperatures.get(alert.location)
+
+            if previous_temperature is None:
+                continue
+
+            delta = round(float(current_temperature) - float(previous_temperature), 1)
+            if abs(delta) < BACKGROUND_TEMPERATURE_CHANGE_C:
+                continue
+
+            if strongest_temperature_change is None or abs(delta) > abs(strongest_temperature_change):
+                strongest_temperature_change = delta
+                strongest_alert = alert
+
+        await save_notification_state(
+            'temperature-watch',
+            {
+                'temperatures': next_temperatures,
+                'updated_at': datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+        if strongest_alert and strongest_temperature_change is not None:
+            temperature_copy = _temperature_change_copy(strongest_alert, strongest_temperature_change)
+            delivered, failed = await send_push_notification_to_subscriptions(
+                temperature_subscriptions,
+                temperature_copy['title'],
+                temperature_copy['body'],
+                tag=f'temperature-change-{strongest_alert.location}',
+                data={'path': '/#', 'view': 'alerts'},
+                renotify=True,
+                require_interaction=False,
+            )
+            temperature_notifications_sent += delivered
+            failures += failed
+
     return PushJobResponse(
+        status='ok',
         app_notifications_sent=app_notifications_sent,
         temperature_notifications_sent=temperature_notifications_sent,
         failures=failures,
@@ -946,7 +991,20 @@ async def cron_background_notifications(request: Request):
     if incoming_secret != expected_secret:
         raise HTTPException(status_code=401, detail='Invalid cron secret.')
 
-    return await run_background_push_cycle()
+    try:
+        return await run_background_push_cycle()
+    except HTTPException as exc:
+        return PushJobResponse(
+            status='error',
+            detail=str(exc.detail),
+            failures=1,
+        )
+    except Exception as exc:
+        return PushJobResponse(
+            status='error',
+            detail=str(exc),
+            failures=1,
+        )
 
 
 @app.post('/predict', response_model=Alert)
