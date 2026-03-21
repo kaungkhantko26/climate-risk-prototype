@@ -20,8 +20,8 @@ const ADMIN_BROADCAST_POLL_MS = 15000
 const INSTALL_GATE_STORAGE_KEY = 'climate-monitor-install-gate-complete'
 const ADMIN_VIEW_ID = 'admin-noti'
 const ICON_VERSION = '20260321'
-const TAB_TRANSITION_SWITCH_MS = 180
-const TAB_TRANSITION_TOTAL_MS = 760
+const TAB_TRANSITION_SWITCH_MS = 240
+const TAB_TRANSITION_TOTAL_MS = 12000
 const DEFAULT_NOTIFICATION_CHANNELS = {
   app: true,
   temperature: true,
