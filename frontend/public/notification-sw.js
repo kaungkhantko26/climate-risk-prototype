@@ -6,6 +6,24 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())
 })
 
+self.addEventListener('push', (event) => {
+  const payload = event.data ? event.data.json() : {}
+  const title = payload.title || 'Climate Monitor'
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: payload.body || '',
+      icon: payload.icon || '/icon-192.png?v=20260321',
+      badge: payload.badge || '/icon-192.png?v=20260321',
+      image: payload.image,
+      tag: payload.tag,
+      data: payload.data,
+      renotify: Boolean(payload.renotify),
+      requireInteraction: Boolean(payload.requireInteraction),
+    }),
+  )
+})
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
 

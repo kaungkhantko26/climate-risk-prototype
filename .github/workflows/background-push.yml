@@ -1,0 +1,25 @@
+name: Send Background Push Notifications
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger backend push job
+        env:
+          BACKEND_URL: ${{ vars.VITE_API_BASE_URL }}
+          BACKGROUND_PUSH_CRON_SECRET: ${{ secrets.BACKGROUND_PUSH_CRON_SECRET }}
+        run: |
+          if [ -z "$BACKEND_URL" ] || [ -z "$BACKGROUND_PUSH_CRON_SECRET" ]; then
+            echo "Missing VITE_API_BASE_URL or BACKGROUND_PUSH_CRON_SECRET"
+            exit 1
+          fi
+
+          curl --fail --silent --show-error \
+            -X POST "${BACKEND_URL%/}/cron/background-notifications" \
+            -H "x-cron-secret: $BACKGROUND_PUSH_CRON_SECRET"

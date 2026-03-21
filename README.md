@@ -101,6 +101,71 @@ To use the live backend with the GitHub Pages frontend:
 6. Add `VITE_API_BASE_URL` with your deployed backend URL.
 7. Re-run the Pages workflow or push a new commit so the frontend rebuild picks up the API URL.
 
+## Background notifications with Supabase
+
+This repo now supports real background web push notifications so users can receive notifications even when the app is not open, as long as their browser/platform supports Web Push and they already granted notification permission.
+
+Files involved:
+- `backend/main.py` - web push config, subscription storage, admin broadcast push, and scheduled background sender
+- `frontend/public/notification-sw.js` - service worker push handler
+- `frontend/src/App.jsx` - push subscription setup and separate app/temperature notification channels
+- `supabase/schema.sql` - Supabase tables for stored subscriptions and notification state
+- `.github/workflows/background-push.yml` - scheduled trigger every 5 minutes
+
+### 1) Create the Supabase tables
+
+In Supabase SQL Editor, run:
+
+```sql
+-- from supabase/schema.sql
+```
+
+Then paste the contents of `supabase/schema.sql`.
+
+### 2) Generate VAPID keys
+
+One simple way is:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+This gives you:
+- a public key
+- a private key
+
+### 3) Set backend environment variables
+
+On your backend host, set:
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
+- `VAPID_SUBJECT`
+  - example: `mailto:you@example.com`
+- `BACKGROUND_PUSH_CRON_SECRET`
+
+Then redeploy the backend.
+
+### 4) Set GitHub Actions secret for the scheduled sender
+
+In GitHub repo settings, add:
+- `BACKGROUND_PUSH_CRON_SECRET` as an Actions secret
+
+The workflow already uses `VITE_API_BASE_URL` to call your backend every 5 minutes.
+
+### 5) What users get
+
+After a user opens the site and allows notifications:
+- the browser registers a real push subscription
+- the subscription is stored in Supabase
+- admin broadcasts from `/noti` can reach the user even when the app is closed
+- the scheduled workflow can send background greeting notifications and temperature change notifications every 5 minutes
+
+### 6) Important limitation
+
+This depends on browser/platform support for Web Push. If a platform or browser disables background push for that user, the app cannot override that behavior.
+
 ## Demo script
 
 1. Open the dashboard and show the sample alerts.

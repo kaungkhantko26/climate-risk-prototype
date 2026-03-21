@@ -1,17 +1,19 @@
 import asyncio
 import json
 import os
+import random
 import time
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import List
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request as UrlRequest, urlopen
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from pywebpush import WebPushException, webpush
 
 app = FastAPI(title='Climate Risk Prediction API', version='0.1.0')
 
@@ -38,6 +40,8 @@ MYANMAR_LOCATION_ALIASES = {
     'နေပြည်တော်': 'Nay Pyi Taw',
 }
 NOTIFICATION_CACHE_TTL_SECONDS = 300.0
+BACKGROUND_TEMPERATURE_CHANGE_C = 1.5
+BACKGROUND_GREETING_INTERVAL_SECONDS = 300
 SAMPLE_ALERT_ITEMS = [
     {'label': 'Hlegu', 'query': 'Hlegu', 'region': 'Yangon Region', 'products': ['Rice', 'Vegetables', 'Fishery']},
     {'label': 'Magway', 'query': 'Magway', 'region': 'Magway Region', 'products': ['Sesame', 'Beans', 'Groundnut']},
@@ -112,6 +116,24 @@ WATCHLIST_ITEMS = [
     {'label': 'Tachileik', 'query': 'Tachileik', 'region': 'Shan State', 'products': ['Rice', 'Corn', 'Fruits']},
     {'label': 'Kyaukme', 'query': 'Kyaukme', 'region': 'Shan State', 'products': ['Rice', 'Tea', 'Coffee']},
 ]
+BACKGROUND_CUTE_GREETING_MESSAGES = [
+    {
+        'title': 'သာယာသောနေ့လေးဖြစ်ပါစေ',
+        'body': 'Climate Monitor က ဒီနေ့ရဲ့ ရာသီဥတုအပြောင်းအလဲတွေကို ချိုချိုလေး စောင့်ကြည့်ပေးနေပါတယ်။',
+    },
+    {
+        'title': 'မင်္ဂလာပါ တောင်သူလေး',
+        'body': 'လက်ရှိအပူချိန်နဲ့ forecast update တွေကို app ထဲမှာ ပြင်ဆင်ထားပြီး စစ်ဆေးနိုင်ပါတယ်။',
+    },
+    {
+        'title': 'နေ့လယ်ခင်းလေးကို အေးအေးချမ်းချမ်းဖြတ်သန်းပါ',
+        'body': 'မြို့နယ်အလိုက် temperature feed နဲ့ climate watch ကို Climate Monitor က ဆက်လက်ပြပေးနေပါတယ်။',
+    },
+    {
+        'title': 'Climate Monitor က နှုတ်ဆက်ပါတယ်',
+        'body': 'App notification နဲ့ weather watch update တွေကို အချိန်နဲ့တပြေးညီ ပြင်ဆင်ထားပါတယ်။',
+    },
+]
 GEOCODE_CACHE: dict[str, dict] = {}
 WATCHLIST_CACHE: dict[str, object] = {'timestamp': 0.0, 'alerts': []}
 ADMIN_BROADCAST_STATE: dict[str, dict | None] = {'broadcast': None}
@@ -124,6 +146,36 @@ def get_allowed_origins() -> List[str]:
         'http://127.0.0.1:5173,http://localhost:5173,https://climate-risk-prototype.kaungkhantko.top',
     )
     return [origin.strip() for origin in raw_origins.split(',') if origin.strip()]
+
+
+@lru_cache
+def get_supabase_url() -> str:
+    return os.getenv('SUPABASE_URL', '').rstrip('/')
+
+
+@lru_cache
+def get_supabase_service_role_key() -> str:
+    return os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')
+
+
+@lru_cache
+def get_vapid_public_key() -> str:
+    return os.getenv('VAPID_PUBLIC_KEY', '')
+
+
+@lru_cache
+def get_vapid_private_key() -> str:
+    return os.getenv('VAPID_PRIVATE_KEY', '')
+
+
+@lru_cache
+def get_vapid_subject() -> str:
+    return os.getenv('VAPID_SUBJECT', 'mailto:admin@climate-monitor.local')
+
+
+@lru_cache
+def get_background_push_cron_secret() -> str:
+    return os.getenv('BACKGROUND_PUSH_CRON_SECRET', '')
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_allowed_origins(),
@@ -188,15 +240,51 @@ class AdminBroadcastRequest(BaseModel):
     body: str = Field(min_length=1, max_length=500)
 
 
+class PushChannelPreferences(BaseModel):
+    app: bool = True
+    temperature: bool = True
+
+
+class PushSubscriptionKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionPayload(BaseModel):
+    endpoint: str
+    expirationTime: int | None = None
+    keys: PushSubscriptionKeys
+
+
+class PushSubscriptionRequest(BaseModel):
+    subscription: PushSubscriptionPayload
+    channels: PushChannelPreferences = Field(default_factory=PushChannelPreferences)
+    user_agent: str | None = None
+
+
 class AdminBroadcastMessage(BaseModel):
     id: str
     title: str
     body: str
     created_at: str
+    delivered_count: int = 0
+    failed_count: int = 0
 
 
 class AdminBroadcastEnvelope(BaseModel):
     broadcast: AdminBroadcastMessage | None = None
+
+
+class PushConfigResponse(BaseModel):
+    enabled: bool
+    public_key: str | None = None
+
+
+class PushJobResponse(BaseModel):
+    app_notifications_sent: int = 0
+    temperature_notifications_sent: int = 0
+    failures: int = 0
+    strongest_temperature_change_c: float | None = None
 
 
 def _mean(values: List[float]) -> float:
@@ -293,7 +381,7 @@ def health():
 
 def _fetch_json_blocking(url: str, params: dict) -> dict:
     query_string = urlencode(params)
-    request = Request(
+    request = UrlRequest(
         f'{url}?{query_string}',
         headers={
             'User-Agent': 'climate-risk-prototype/1.0',
@@ -316,6 +404,198 @@ async def fetch_json(url: str, params: dict) -> dict:
         raise HTTPException(status_code=504, detail='Weather provider timed out.') from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f'Weather provider request failed: {exc}') from exc
+
+
+def _supabase_request_blocking(
+    method: str,
+    table: str,
+    payload: dict | list | None = None,
+    query: dict | None = None,
+    prefer: str | None = None,
+):
+    supabase_url = get_supabase_url()
+    service_key = get_supabase_service_role_key()
+
+    if not supabase_url or not service_key:
+        raise HTTPException(status_code=503, detail='Supabase push storage is not configured.')
+
+    endpoint = f'{supabase_url}/rest/v1/{table}'
+    if query:
+        endpoint = f'{endpoint}?{urlencode(query, doseq=True)}'
+
+    headers = {
+        'User-Agent': 'climate-risk-prototype/1.0',
+        'Accept': 'application/json',
+        'apikey': service_key,
+        'Authorization': f'Bearer {service_key}',
+        'Content-Type': 'application/json',
+    }
+    if prefer:
+        headers['Prefer'] = prefer
+
+    request_data = json.dumps(payload).encode('utf-8') if payload is not None else None
+    request = UrlRequest(endpoint, data=request_data, headers=headers, method=method)
+    with urlopen(request, timeout=15) as response:
+        raw_body = response.read().decode('utf-8')
+        return json.loads(raw_body) if raw_body else None
+
+
+async def supabase_request(
+    method: str,
+    table: str,
+    payload: dict | list | None = None,
+    query: dict | None = None,
+    prefer: str | None = None,
+):
+    try:
+        return await asyncio.to_thread(_supabase_request_blocking, method, table, payload, query, prefer)
+    except HTTPException:
+        raise
+    except HTTPError as exc:
+        detail = exc.read().decode('utf-8') if hasattr(exc, 'read') else ''
+        raise HTTPException(status_code=502, detail=f'Supabase returned HTTP {exc.code}. {detail}') from exc
+    except URLError as exc:
+        reason = getattr(exc, 'reason', exc)
+        raise HTTPException(status_code=502, detail=f'Supabase connection failed: {reason}') from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f'Supabase request failed: {exc}') from exc
+
+
+async def upsert_push_subscription(record: dict) -> None:
+    await supabase_request(
+        'POST',
+        'push_subscriptions',
+        payload=[record],
+        query={'on_conflict': 'endpoint'},
+        prefer='resolution=merge-duplicates,return=minimal',
+    )
+
+
+async def list_push_subscriptions() -> list[dict]:
+    subscriptions = await supabase_request(
+        'GET',
+        'push_subscriptions',
+        query={'select': 'endpoint,p256dh,auth,channels,active'},
+    )
+    return subscriptions or []
+
+
+async def deactivate_push_subscription(endpoint: str) -> None:
+    await supabase_request(
+        'PATCH',
+        'push_subscriptions',
+        payload={
+            'active': False,
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        },
+        query={'endpoint': f'eq.{endpoint}'},
+        prefer='return=minimal',
+    )
+
+
+async def get_notification_state(key: str) -> dict:
+    rows = await supabase_request(
+        'GET',
+        'notification_states',
+        query={'select': 'key,payload', 'key': f'eq.{key}'},
+    )
+    if not rows:
+        return {}
+
+    return rows[0].get('payload') or {}
+
+
+async def save_notification_state(key: str, payload: dict) -> None:
+    await supabase_request(
+        'POST',
+        'notification_states',
+        payload=[{
+            'key': key,
+            'payload': payload,
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }],
+        query={'on_conflict': 'key'},
+        prefer='resolution=merge-duplicates,return=minimal',
+    )
+
+
+def _channel_enabled(record: dict, channel: str) -> bool:
+    channels = record.get('channels') or {}
+    if not isinstance(channels, dict):
+        return True
+
+    return bool(channels.get(channel, True))
+
+
+async def get_push_subscriptions_for_channel(channel: str) -> list[dict]:
+    subscriptions = await list_push_subscriptions()
+    return [
+        subscription for subscription in subscriptions
+        if subscription.get('active', True) and _channel_enabled(subscription, channel)
+    ]
+
+
+def _send_web_push_blocking(subscription: dict, payload: dict) -> int | None:
+    response = webpush(
+        subscription_info={
+            'endpoint': subscription['endpoint'],
+            'keys': {
+                'p256dh': subscription['p256dh'],
+                'auth': subscription['auth'],
+            },
+        },
+        data=json.dumps(payload),
+        vapid_private_key=get_vapid_private_key(),
+        vapid_claims={'sub': get_vapid_subject()},
+    )
+    return getattr(response, 'status_code', None)
+
+
+async def send_push_notification_to_channel(
+    channel: str,
+    title: str,
+    body: str,
+    *,
+    tag: str,
+    data: dict | None = None,
+    renotify: bool = True,
+    require_interaction: bool = False,
+) -> tuple[int, int]:
+    if not get_vapid_private_key() or not get_vapid_public_key():
+        raise HTTPException(status_code=503, detail='Web push VAPID keys are not configured.')
+
+    subscriptions = await get_push_subscriptions_for_channel(channel)
+    if not subscriptions:
+        return 0, 0
+
+    payload = {
+        'title': title,
+        'body': body,
+        'icon': '/icon-192.png?v=20260321',
+        'badge': '/icon-192.png?v=20260321',
+        'image': '/icon-512.png?v=20260321',
+        'tag': tag,
+        'data': data or {'path': '/#', 'view': 'home'},
+        'renotify': renotify,
+        'requireInteraction': require_interaction,
+    }
+
+    delivered = 0
+    failures = 0
+
+    for subscription in subscriptions:
+        try:
+            await asyncio.to_thread(_send_web_push_blocking, subscription, payload)
+            delivered += 1
+        except WebPushException as exc:
+            failures += 1
+            status_code = getattr(getattr(exc, 'response', None), 'status_code', None)
+            if status_code in {404, 410}:
+                await deactivate_push_subscription(subscription['endpoint'])
+        except Exception:
+            failures += 1
+
+    return delivered, failures
 
 
 async def geocode_location(query: str) -> dict:
@@ -470,6 +750,98 @@ def _get_current_admin_broadcast() -> AdminBroadcastMessage | None:
     return AdminBroadcastMessage(**current_broadcast)
 
 
+def _pick_background_greeting() -> dict:
+    return random.choice(BACKGROUND_CUTE_GREETING_MESSAGES)
+
+
+def _temperature_change_copy(alert: Alert, delta: float) -> dict:
+    current_temperature = round(float(alert.weather.current_temperature_c), 1)
+    magnitude = abs(delta)
+
+    if delta > 0:
+        return {
+            'title': f'{alert.location} ပိုပူလာနေပါသည်',
+            'body': f'အခု {current_temperature}°C ရောက်နေပြီး {magnitude:.1f}°C တက်လာပါပြီ။ {alert.crop} စိုက်ခင်းအတွက် ရေပြင်ဆင်ထားပါ။',
+        }
+
+    return {
+        'title': f'{alert.location} အပူနည်းလာနေပါသည်',
+        'body': f'အခု {current_temperature}°C ဖြစ်နေပြီး {magnitude:.1f}°C လျော့သွားပါပြီ။ ရာသီဥတုအပြောင်းအလဲကို ဆက်စောင့်ကြည့်ပါ။',
+    }
+
+
+async def run_background_push_cycle() -> PushJobResponse:
+    app_notifications_sent = 0
+    temperature_notifications_sent = 0
+    failures = 0
+    strongest_temperature_change = None
+
+    greeting = _pick_background_greeting()
+    delivered, failed = await send_push_notification_to_channel(
+        'app',
+        greeting['title'],
+        greeting['body'],
+        tag=f'background-greeting-{int(time.time() // BACKGROUND_GREETING_INTERVAL_SECONDS)}',
+        data={'path': '/#', 'view': 'home'},
+        renotify=True,
+        require_interaction=False,
+    )
+    app_notifications_sent += delivered
+    failures += failed
+
+    previous_state = await get_notification_state('temperature-watch')
+    previous_temperatures = previous_state.get('temperatures') if isinstance(previous_state, dict) else {}
+    next_temperatures: dict[str, float] = {}
+
+    alerts = await get_watchlist_alerts()
+    strongest_alert = None
+
+    for alert in alerts:
+        current_temperature = alert.weather.current_temperature_c
+        next_temperatures[alert.location] = current_temperature
+        previous_temperature = previous_temperatures.get(alert.location)
+
+        if previous_temperature is None:
+            continue
+
+        delta = round(float(current_temperature) - float(previous_temperature), 1)
+        if abs(delta) < BACKGROUND_TEMPERATURE_CHANGE_C:
+            continue
+
+        if strongest_temperature_change is None or abs(delta) > abs(strongest_temperature_change):
+            strongest_temperature_change = delta
+            strongest_alert = alert
+
+    await save_notification_state(
+        'temperature-watch',
+        {
+            'temperatures': next_temperatures,
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+    if strongest_alert and strongest_temperature_change is not None:
+        temperature_copy = _temperature_change_copy(strongest_alert, strongest_temperature_change)
+        delivered, failed = await send_push_notification_to_channel(
+            'temperature',
+            temperature_copy['title'],
+            temperature_copy['body'],
+            tag=f'temperature-change-{strongest_alert.location}',
+            data={'path': '/#', 'view': 'alerts'},
+            renotify=True,
+            require_interaction=False,
+        )
+        temperature_notifications_sent += delivered
+        failures += failed
+
+    return PushJobResponse(
+        app_notifications_sent=app_notifications_sent,
+        temperature_notifications_sent=temperature_notifications_sent,
+        failures=failures,
+        strongest_temperature_change_c=strongest_temperature_change,
+    )
+
+
 @app.get('/sample-alerts', response_model=BatchResponse)
 async def sample_alerts():
     results = await asyncio.gather(
@@ -494,6 +866,34 @@ def locations():
     ]
 
 
+@app.get('/push/config', response_model=PushConfigResponse)
+def push_config():
+    public_key = get_vapid_public_key()
+    return {
+        'enabled': bool(public_key and get_supabase_url() and get_supabase_service_role_key()),
+        'public_key': public_key or None,
+    }
+
+
+@app.post('/push/subscribe')
+async def push_subscribe(request: PushSubscriptionRequest):
+    if not get_vapid_public_key() or not get_vapid_private_key():
+        raise HTTPException(status_code=503, detail='Web push is not configured.')
+
+    await upsert_push_subscription(
+        {
+            'endpoint': request.subscription.endpoint,
+            'p256dh': request.subscription.keys.p256dh,
+            'auth': request.subscription.keys.auth,
+            'channels': request.channels.model_dump(),
+            'user_agent': request.user_agent,
+            'active': True,
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        },
+    )
+    return {'status': 'ok'}
+
+
 @app.get('/live-notifications', response_model=BatchResponse)
 async def live_notifications():
     alerts = await get_watchlist_alerts()
@@ -506,15 +906,47 @@ def admin_broadcast_current():
 
 
 @app.post('/admin-broadcast', response_model=AdminBroadcastMessage)
-def admin_broadcast(request: AdminBroadcastRequest):
+async def admin_broadcast(request: AdminBroadcastRequest):
+    delivered_count = 0
+    failed_count = 0
+
     broadcast = AdminBroadcastMessage(
         id=f'admin-broadcast-{int(time.time() * 1000)}',
         title=request.title.strip(),
         body=request.body.strip(),
         created_at=datetime.now(timezone.utc).isoformat(),
+        delivered_count=0,
+        failed_count=0,
     )
+
+    if get_vapid_public_key() and get_vapid_private_key() and get_supabase_url() and get_supabase_service_role_key():
+        delivered_count, failed_count = await send_push_notification_to_channel(
+            'app',
+            broadcast.title,
+            broadcast.body,
+            tag=broadcast.id,
+            data={'path': '/#', 'view': 'home'},
+            renotify=True,
+            require_interaction=True,
+        )
+        broadcast.delivered_count = delivered_count
+        broadcast.failed_count = failed_count
+
     ADMIN_BROADCAST_STATE['broadcast'] = broadcast.model_dump()
     return broadcast
+
+
+@app.post('/cron/background-notifications', response_model=PushJobResponse)
+async def cron_background_notifications(request: Request):
+    expected_secret = get_background_push_cron_secret()
+    if not expected_secret:
+        raise HTTPException(status_code=503, detail='Background push cron secret is not configured.')
+
+    incoming_secret = request.headers.get('x-cron-secret', '')
+    if incoming_secret != expected_secret:
+        raise HTTPException(status_code=401, detail='Invalid cron secret.')
+
+    return await run_background_push_cycle()
 
 
 @app.post('/predict', response_model=Alert)

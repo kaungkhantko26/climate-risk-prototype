@@ -353,6 +353,19 @@ const getStoredNotificationChannels = () => {
   }
 }
 
+const urlBase64ToUint8Array = (base64String) => {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+
+  for (let index = 0; index < rawData.length; index += 1) {
+    outputArray[index] = rawData.charCodeAt(index)
+  }
+
+  return outputArray
+}
+
 export default function App() {
   const [alerts, setAlerts] = useState([])
   const [selectedAlert, setSelectedAlert] = useState(null)
@@ -373,6 +386,7 @@ export default function App() {
   const [adminBroadcastStatus, setAdminBroadcastStatus] = useState('')
   const [adminBroadcastError, setAdminBroadcastError] = useState('')
   const [isSendingAdminBroadcast, setIsSendingAdminBroadcast] = useState(false)
+  const [pushConfig, setPushConfig] = useState({ enabled: false, public_key: '' })
   const [notificationPermission, setNotificationPermission] = useState(
     getNotificationSupport() ? Notification.permission : 'unsupported',
   )
@@ -420,6 +434,37 @@ export default function App() {
     }
 
     loadAlerts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadPushConfig = async () => {
+      if (!API_BASE) return
+
+      try {
+        const response = await fetch(`${API_BASE}/push/config`, { cache: 'no-store' })
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, 'Push config ကို မရရှိနိုင်ပါ။'))
+        }
+
+        const data = await response.json()
+        if (cancelled) return
+        setPushConfig({
+          enabled: Boolean(data.enabled),
+          public_key: data.public_key || '',
+        })
+      } catch {
+        if (cancelled) return
+        setPushConfig({ enabled: false, public_key: '' })
+      }
+    }
+
+    void loadPushConfig()
 
     return () => {
       cancelled = true
@@ -688,6 +733,19 @@ export default function App() {
   }, [notificationChannels.app, notificationPermission, notificationsSupported])
 
   useEffect(() => {
+    if (notificationPermission !== 'granted') return
+    if (!pushConfig.enabled || !pushConfig.public_key) return
+
+    void syncPushSubscription(notificationChannels)
+  }, [
+    notificationChannels.app,
+    notificationChannels.temperature,
+    notificationPermission,
+    pushConfig.enabled,
+    pushConfig.public_key,
+  ])
+
+  useEffect(() => {
     if (!API_BASE) return undefined
 
     const shouldPollAdminBroadcast = activeView === ADMIN_VIEW_ID || (
@@ -809,7 +867,9 @@ export default function App() {
   const currentLocationLabel = currentAlert?.location || form.location || 'Myanmar Live Feed'
   const currentTemperatureLabel = formatValue(currentAlert?.weather?.current_temperature_c, '°C', 1)
   const notificationStatusLabel = notificationPermission === 'granted'
-    ? 'System notifications are ready'
+    ? pushConfig.enabled
+      ? 'Background push notifications are ready'
+      : 'System notifications are ready, but background push is not configured'
     : notificationPermission === 'denied'
       ? 'Notifications are blocked in this browser'
       : notificationPermission === 'default'
@@ -852,6 +912,42 @@ export default function App() {
       new Notification(title, notificationOptions)
       return true
     } catch {
+      return false
+    }
+  }
+
+  const syncPushSubscription = async (channelsToPersist = notificationChannels) => {
+    if (!API_BASE || !pushConfig.enabled || !pushConfig.public_key) return false
+    if (!notificationsSupported || Notification.permission !== 'granted') return false
+
+    try {
+      const registration = await navigator.serviceWorker.ready
+      let subscription = await registration.pushManager.getSubscription()
+
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(pushConfig.public_key),
+        })
+      }
+
+      const response = await fetch(`${API_BASE}/push/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscription: subscription.toJSON(),
+          channels: channelsToPersist,
+          user_agent: navigator.userAgent,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Background push subscription ကို မသိမ်းနိုင်ပါ။'))
+      }
+
+      return true
+    } catch (error) {
+      setStatus(error.message || 'Background push subscription ကို မသိမ်းနိုင်ပါ။')
       return false
     }
   }
@@ -905,6 +1001,10 @@ export default function App() {
     }
     persistNotificationChannels(nextChannels)
 
+    if (nextEnabled && pushConfig.enabled) {
+      await syncPushSubscription(nextChannels)
+    }
+
     if (nextEnabled) {
       const statusMessage = channel === 'app'
         ? 'App notification channel ကို ဖွင့်ပြီးပါပြီ။'
@@ -935,6 +1035,10 @@ export default function App() {
   const enableNotificationCenter = async () => {
     const granted = await requestSystemNotificationPermission()
     if (!granted) return
+
+    if (pushConfig.enabled) {
+      await syncPushSubscription(notificationChannels)
+    }
 
     setStatus('App notifications နဲ့ temperature alerts ကို သီးခြားထိန်းချုပ်နိုင်ပါပြီ။')
     await showSystemNotification(
