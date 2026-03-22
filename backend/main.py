@@ -509,22 +509,22 @@ def build_alert(location: str, crop: str, weather: WeatherSnapshot, source: str)
         risk = 'ရေကြီးနိုင်မှု မြင့်မား'
         confidence = min(96, int(60 + rainfall / 4 + max(moisture - 30, 0)))
         timing = 'Next 72 hours'
-        advice = 'Move inputs to higher ground, clear drainage channels, and delay field work until runoff eases.'
+        advice = 'စိုက်ခင်းသုံးပစ္စည်းများကို မြင့်သောနေရာသို့ ရွှေ့ပြီး ရေထွက်လမ်းများကို ရှင်းလင်းထားကာ ရေကျသွားသည်အထိ လယ်ယာလုပ်ငန်းကို ခဏရပ်နားပါ။'
     elif rainfall <= 15 and temp >= 35 and moisture <= 20:
         risk = 'မိုးခေါင်နိုင်မှု မြင့်မား'
         confidence = min(94, int(56 + temp + max(20 - moisture, 0) + max(15 - rainfall, 0) / 2))
         timing = 'Next 72 hours'
-        advice = 'Prepare irrigation, mulch exposed soil, and reduce transplanting or fertilizer application during peak heat.'
+        advice = 'ရေသွင်းစနစ်ကို အသင့်ပြင်ထားပြီး မြေပြင်ပေါ် mulch ခင်းကာ အပူချိန်အမြင့်ဆုံးအချိန်တွင် ပြောင်းရွှေ့စိုက်ပျိုးခြင်းနှင့် ဓာတ်မြေသြဇာထည့်ခြင်းကို လျှော့ချပါ။'
     elif wind >= 45 or rainfall >= 70:
         risk = 'မိုးသက်လေပြင်း သတိပေးချက်'
         confidence = min(93, int(58 + wind / 1.8 + rainfall / 8))
         timing = 'Next 48 hours'
-        advice = 'Secure seedlings, avoid spraying or fertilizer application, and protect stored harvest from gusts and heavy showers.'
+        advice = 'ပျိုးပင်များကို ခိုင်မာစွာချည်နှောင်ပြီး ဖျန်းဆေးသို့မဟုတ် ဓာတ်မြေသြဇာထည့်ခြင်းကို ရှောင်ကာ သိုလှောင်ထားသည့် ရိတ်သိမ်းသီးနှံကို လေပြင်းနှင့် မိုးသည်းထန်စွာရွာသွန်းမှုမှ ကာကွယ်ပါ။'
     else:
         risk = 'အလယ်အလတ် ရာသီဥတုအန္တရာယ်'
         confidence = min(84, int(62 + rainfall / 12 + wind / 12))
         timing = 'Next 5 days'
-        advice = 'Keep monitoring the forecast, maintain field drainage, and prepare basic crop protection for changing conditions.'
+        advice = 'မိုးလေဝသခန့်မှန်းချက်ကို ဆက်လက်စောင့်ကြည့်ပြီး ရေထွက်လမ်းများကို ထိန်းသိမ်းကာ ပြောင်းလဲနိုင်သော အခြေအနေများအတွက် အခြေခံသီးနှံကာကွယ်မှုကို ကြိုတင်ပြင်ဆင်ပါ။'
 
     sms = _build_sms(location, crop, risk, advice, weather)
 

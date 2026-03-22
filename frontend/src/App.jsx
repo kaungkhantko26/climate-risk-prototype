@@ -109,6 +109,22 @@ const badgeClass = (risk) => {
   return 'bg-blue-100 text-blue-700 border-blue-200'
 }
 
+const featuredAlertCardClass = (risk) => {
+  const riskKind = getRiskKind(risk)
+  if (riskKind === 'flood') return 'border-2 border-red-200 shadow-[0_12px_48px_rgba(186,26,26,0.12)]'
+  if (riskKind === 'drought') return 'border-2 border-orange-200 shadow-[0_12px_48px_rgba(234,88,12,0.12)]'
+  if (riskKind === 'storm') return 'border-2 border-amber-200 shadow-[0_12px_48px_rgba(217,119,6,0.12)]'
+  return 'border-2 border-blue-200 shadow-[0_12px_48px_rgba(59,130,246,0.12)]'
+}
+
+const featuredAlertLocationClass = (risk) => {
+  const riskKind = getRiskKind(risk)
+  if (riskKind === 'flood') return 'text-red-700'
+  if (riskKind === 'drought') return 'text-orange-700'
+  if (riskKind === 'storm') return 'text-amber-700'
+  return 'text-blue-700'
+}
+
 const formatValue = (value, unit, digits = 0) => {
   if (value === null || value === undefined || Number.isNaN(value)) return 'Unavailable'
   return `${Number(value).toFixed(digits)}${unit}`
@@ -221,14 +237,14 @@ const getRiskMeta = (alert) => {
   }
 
   return {
-    headline: 'အန္တရာယ် နည်းပါးပါသည်',
-    subline: `${alert.location} တွင် စောင့်ကြည့်ရမည့် အခြေအနေသာ ရှိပါသည်`,
-    summary: `${alert.crop} စိုက်ခင်းအတွက် လက်ရှိဒေတာအရ အန္တရာယ် မမြင့်သေးပါ။ သို့သော် ရာသီဥတု ပြောင်းလဲမှုများကို ဆက်လက် စောင့်ကြည့်သင့်ပါသည်။`,
-    icon: 'eco',
-    badge: 'အန္တရာယ် နည်းပါး',
-    badgeClassName: 'bg-primary-container text-on-primary-container',
-    accentClass: 'bg-primary',
-    iconPanelClass: 'bg-primary-container text-primary',
+    headline: 'အလယ်အလတ် အန္တရာယ် ရှိပါသည်',
+    subline: `${alert.location} တွင် အခြေအနေပြောင်းလဲနိုင်သဖြင့် စောင့်ကြည့်ရန် လိုအပ်ပါသည်`,
+    summary: `${alert.crop} စိုက်ခင်းအတွက် မိုးရေ၊ လေတိုက်နှုန်းနှင့် မြေစိုထိုင်းဆ ပြောင်းလဲမှုများကို ဆက်လက်စောင့်ကြည့်ကာ အခြေခံကာကွယ်ရေး အစီအစဉ်ကို အသင့်ထားပါ။`,
+    icon: 'warning',
+    badge: 'စောင့်ကြည့်ရန်',
+    badgeClassName: 'bg-blue-100 text-blue-700',
+    accentClass: 'bg-blue-500',
+    iconPanelClass: 'bg-blue-100 text-blue-700',
   }
 }
 
@@ -1723,7 +1739,7 @@ export default function App() {
           </button>
         </div>
 
-        <article className="bg-white rounded-3xl p-6 md:p-8 flex flex-col md:flex-row gap-6 md:items-center shadow-[0_12px_48px_rgba(45,106,79,0.12)] border-2 border-primary/20 relative overflow-hidden">
+        <article className={`bg-white rounded-3xl p-6 md:p-8 flex flex-col md:flex-row gap-6 md:items-center relative overflow-hidden ${featuredAlertCardClass(currentAlert?.risk || '')}`}>
           <div className={`absolute left-0 top-0 bottom-0 w-3 ${currentMeta.accentClass}`}></div>
           <div className={`w-24 h-24 rounded-2xl flex items-center justify-center shrink-0 shadow-inner ${currentMeta.iconPanelClass}`}>
             <span className="material-symbols-outlined text-6xl" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -1737,7 +1753,7 @@ export default function App() {
                 <span className={`px-4 py-1.5 rounded-full text-xs font-bold font-label uppercase tracking-wider ${currentMeta.badgeClassName}`}>
                   {currentMeta.badge}
                 </span>
-                <div className="flex items-center gap-1.5 text-primary font-bold font-headline">
+                <div className={`flex items-center gap-1.5 font-bold font-headline ${featuredAlertLocationClass(currentAlert?.risk || '')}`}>
                   <span className="material-symbols-outlined text-lg">location_on</span>
                   <span>{currentAlert?.location || 'Myanmar'}</span>
                 </div>
