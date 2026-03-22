@@ -1412,22 +1412,21 @@ export default function App() {
   const renderHomeView = () => (
     <div className="space-y-8">
       <section
-        className="text-on-primary rounded-3xl p-6 md:p-10 shadow-xl relative overflow-hidden bg-cover bg-center"
-        style={{
-          backgroundImage: `linear-gradient(135deg, rgba(23, 77, 53, 0.92), rgba(45, 106, 79, 0.82))`,
-        }}
+        className="text-on-primary rounded-3xl p-6 md:p-10 shadow-xl relative overflow-hidden min-h-[320px] md:min-h-[360px]"
       >
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-screen"
-          style={{
-            backgroundImage: `url(${import.meta.env.BASE_URL}IMG_0077.png)`,
-          }}
-        ></div>
-        <div className="absolute right-0 bottom-0 opacity-10 translate-x-1/4 translate-y-1/4">
+        <img
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover object-[center_35%] md:object-center"
+          src="/IMG_0077.png"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(18,63,43,0.82),rgba(45,106,79,0.72),rgba(17,43,29,0.6))]"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_42%)]"></div>
+        <div className="absolute right-0 bottom-0 z-10 opacity-10 translate-x-1/4 translate-y-1/4">
           <span className="material-symbols-outlined text-[120px]">{currentMeta.icon}</span>
         </div>
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="relative z-20 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-3xl">
             <p className="font-label text-on-primary/80 text-sm font-bold uppercase tracking-widest">ယနေ့ ရာသီဥတု အခြေအနေ</p>
             <h3 className="text-3xl md:text-4xl font-headline font-extrabold">{currentMeta.headline}</h3>
