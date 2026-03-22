@@ -12,6 +12,7 @@ const views = [
   { id: 'map', icon: 'map', label: 'မြေပုံ' },
   { id: 'guide', icon: 'menu_book', label: 'လမ်းညွှန်' },
 ]
+const HOME_ALERT_POLL_MS = 30 * 1000
 const SYSTEM_NOTIFICATION_POLL_MS = 5 * 60 * 1000
 const SYSTEM_NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000
 const CUTE_GREETING_INTERVAL_MS = 5 * 60 * 1000
@@ -305,6 +306,15 @@ const pickMatchingAlert = (currentAlert, nextAlerts) => {
   ) || nextAlerts[0]
 }
 
+const pickMatchingAlertOrKeepCurrent = (currentAlert, nextAlerts) => {
+  if (!nextAlerts.length) return currentAlert || null
+  if (!currentAlert) return nextAlerts[0]
+
+  return nextAlerts.find(
+    (alert) => alert.location === currentAlert.location && alert.crop === currentAlert.crop,
+  ) || currentAlert
+}
+
 const groupLocationOptions = (options) => {
   const groupMap = new Map()
 
@@ -433,6 +443,7 @@ export default function App() {
   const [isLocating, setIsLocating] = useState(false)
   const [notificationsError, setNotificationsError] = useState('')
   const [lastFeedRefresh, setLastFeedRefresh] = useState(null)
+  const [lastHomeAlertRefresh, setLastHomeAlertRefresh] = useState(null)
   const [currentBroadcast, setCurrentBroadcast] = useState(null)
   const [adminBroadcastForm, setAdminBroadcastForm] = useState({ title: '', body: '' })
   const [adminBroadcastStatus, setAdminBroadcastStatus] = useState('')
@@ -453,46 +464,80 @@ export default function App() {
   const lastSystemNotificationAtRef = useRef(0)
   const lastGreetingIndexRef = useRef(-1)
   const deliveredBroadcastIdRef = useRef('')
+  const latestPredictionPayloadRef = useRef(null)
+  const hasLoadedHomeAlertsRef = useRef(false)
   const tabTransitionTimeoutsRef = useRef([])
 
   const notificationsSupported = getNotificationSupport()
 
   useEffect(() => {
-    let cancelled = false
+    if (!API_BASE) {
+      setAlerts([])
+      setSelectedAlert(null)
+      setStatus('Live backend URL မသတ်မှတ်ရသေးပါ။ VITE_API_BASE_URL ကို ထည့်သွင်းပါ။')
+      return undefined
+    }
 
-    const loadAlerts = async () => {
-      if (!API_BASE) {
-        if (cancelled) return
-        setAlerts([])
-        setSelectedAlert(null)
-        setStatus('Live backend URL မသတ်မှတ်ရသေးပါ။ VITE_API_BASE_URL ကို ထည့်သွင်းပါ။')
-        return
-      }
+    let cancelled = false
+    let inFlight = false
+
+    const syncHomeAlert = async () => {
+      if (cancelled || inFlight) return
+      inFlight = true
 
       try {
-        const response = await fetch(`${API_BASE}/sample-alerts`, { cache: 'no-store' })
-        if (!response.ok) {
-          throw new Error(await readErrorMessage(response, 'မြန်မာ watchlist ကို မရရှိနိုင်ပါ။'))
+        if (latestPredictionPayloadRef.current) {
+          const response = await fetch(`${API_BASE}/predict`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(latestPredictionPayloadRef.current),
+          })
+          if (!response.ok) {
+            throw new Error(await readErrorMessage(response, 'ရွေးထားသော live alert ကို update မလုပ်နိုင်ပါ။'))
+          }
+
+          const data = await response.json()
+          if (cancelled) return
+          hasLoadedHomeAlertsRef.current = true
+          setGeneratedAlert(data)
+          setSelectedAlert(data)
+          setLastHomeAlertRefresh(new Date().toISOString())
+        } else {
+          const response = await fetch(`${API_BASE}/sample-alerts`, { cache: 'no-store' })
+          if (!response.ok) {
+            throw new Error(await readErrorMessage(response, 'မြန်မာ watchlist ကို မရရှိနိုင်ပါ။'))
+          }
+
+          const data = await response.json()
+          const nextAlerts = data.alerts || []
+          if (cancelled) return
+          hasLoadedHomeAlertsRef.current = true
+          setAlerts(nextAlerts)
+          setSelectedAlert((prev) => pickMatchingAlertOrKeepCurrent(prev, nextAlerts))
+          setLastHomeAlertRefresh(new Date().toISOString())
         }
 
-        const data = await response.json()
-        const nextAlerts = data.alerts || []
-        if (cancelled) return
-        setAlerts(nextAlerts)
-        setSelectedAlert((prev) => pickMatchingAlert(prev, nextAlerts))
-        setStatus('Live Myanmar weather detection ချိတ်ဆက်ပြီးပါပြီ။')
+        setStatus('Live Myanmar weather detection ကို အချိန်နှင့်တပြေးညီ update လုပ်နေပါသည်။')
       } catch (error) {
         if (cancelled) return
-        setAlerts([])
-        setSelectedAlert(null)
+        if (!hasLoadedHomeAlertsRef.current) {
+          setAlerts([])
+          setSelectedAlert(null)
+        }
         setStatus(error.message || 'Live weather data ကို မရရှိနိုင်ပါ။')
+      } finally {
+        inFlight = false
       }
     }
 
-    loadAlerts()
+    void syncHomeAlert()
+    const intervalId = window.setInterval(() => {
+      void syncHomeAlert()
+    }, HOME_ALERT_POLL_MS)
 
     return () => {
       cancelled = true
+      window.clearInterval(intervalId)
     }
   }, [])
 
@@ -982,6 +1027,9 @@ export default function App() {
   const installGateCanPrompt = Boolean(deferredInstallPrompt)
   const currentLocationLabel = currentAlert?.location || form.location || 'Myanmar Live Feed'
   const currentTemperatureLabel = formatValue(currentAlert?.weather?.current_temperature_c, '°C', 1)
+  const featuredAlertUpdatedLabel = lastHomeAlertRefresh
+    ? `ယခု update: ${formatForecastTime(lastHomeAlertRefresh)}`
+    : formatForecastTime(currentAlert?.weather?.forecast_time)
   const notificationStatusLabel = notificationPermission === 'granted'
     ? !pushConfig.loaded
       ? 'Checking background push configuration...'
@@ -1270,6 +1318,7 @@ export default function App() {
   }
 
   const focusAlert = (alert, nextView = activeView) => {
+    latestPredictionPayloadRef.current = null
     setSelectedAlert(alert)
     setGeneratedAlert(null)
     setForm((prev) => ({ ...prev, crop: alert.crop }))
@@ -1304,8 +1353,10 @@ export default function App() {
       }
 
       const data = await response.json()
+      latestPredictionPayloadRef.current = payload
       setGeneratedAlert(data)
       setSelectedAlert(data)
+      setLastHomeAlertRefresh(new Date().toISOString())
       setForm((prev) => ({
         ...prev,
         crop: data.crop,
@@ -1759,7 +1810,7 @@ export default function App() {
                 </div>
               </div>
               <time className="text-sm text-on-surface-variant font-label font-medium opacity-60">
-                {formatForecastTime(currentAlert?.weather?.forecast_time)}
+                {featuredAlertUpdatedLabel}
               </time>
             </div>
 
