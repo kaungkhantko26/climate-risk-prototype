@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="my">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2D6A4F" />
+    <title>404 | Climate Monitor Myanmar</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260321" />
+    <link rel="icon" href="/favicon.ico?v=20260321" sizes="any" />
+    <style>
+      @font-face {
+        font-family: 'Nothing English Text';
+        src: url('/fonts/NType82-Regular.otf') format('opentype');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+        unicode-range:
+          U+0000-00FF,
+          U+0100-024F,
+          U+1E00-1EFF,
+          U+2000-206F,
+          U+20A0-20CF;
+      }
+
+      @font-face {
+        font-family: 'Nothing English Headline';
+        src: url('/fonts/NType82-Headline.otf') format('opentype');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+        unicode-range:
+          U+0000-00FF,
+          U+0100-024F,
+          U+1E00-1EFF,
+          U+2000-206F,
+          U+20A0-20CF;
+      }
+
+      @font-face {
+        font-family: 'Myanmar PaOh Rosemary';
+        src: url('/fonts/MyanmarPaOhRosemary-Regular.woff2') format('woff2');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+        unicode-range:
+          U+1000-109F,
+          U+AA60-AA7F,
+          U+A9E0-A9FF;
+      }
+
+      :root {
+        --bg: #fbfbe2;
+        --surface: rgba(255, 255, 255, 0.82);
+        --surface-soft: #f5f5dc;
+        --text: #1b1d0e;
+        --muted: #5d655f;
+        --primary: #2d6a4f;
+        --primary-soft: #b1f0ce;
+        --accent: #713638;
+        --outline: rgba(112, 121, 115, 0.16);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at top left, rgba(177, 240, 206, 0.55), transparent 34%),
+          radial-gradient(circle at right 20%, rgba(113, 54, 56, 0.12), transparent 24%),
+          linear-gradient(180deg, #fbfbe2 0%, #f2f4de 100%);
+        color: var(--text);
+        font-family: 'Nothing English Text', 'Myanmar PaOh Rosemary', 'Padauk', serif;
+      }
+
+      .shell {
+        width: min(100%, 1040px);
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 24px;
+        align-items: stretch;
+      }
+
+      .hero,
+      .panel {
+        border: 1px solid var(--outline);
+        border-radius: 32px;
+        background: var(--surface);
+        backdrop-filter: blur(18px);
+        box-shadow: 0 24px 80px rgba(27, 29, 14, 0.08);
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 40px;
+      }
+
+      .hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(circle at top right, rgba(255, 255, 255, 0.52), transparent 34%),
+          linear-gradient(135deg, rgba(45, 106, 79, 0.08), rgba(113, 54, 56, 0.06));
+        pointer-events: none;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        font: 700 12px/1 'Nothing English Headline', 'Myanmar PaOh Rosemary', sans-serif;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .code {
+        margin-top: 22px;
+        font: 700 clamp(72px, 14vw, 146px)/0.9 'Nothing English Headline', 'Myanmar PaOh Rosemary', sans-serif;
+        color: var(--accent);
+      }
+
+      h1 {
+        margin: 16px 0 0;
+        font: 700 clamp(28px, 4vw, 52px)/1.08 'Nothing English Headline', 'Myanmar PaOh Rosemary', sans-serif;
+      }
+
+      .lead {
+        margin: 16px 0 0;
+        max-width: 34rem;
+        color: var(--muted);
+        font-size: clamp(18px, 2vw, 24px);
+        line-height: 1.7;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-top: 28px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 52px;
+        padding: 0 22px;
+        border-radius: 999px;
+        text-decoration: none;
+        font: 700 15px/1 'Nothing English Headline', 'Myanmar PaOh Rosemary', sans-serif;
+        transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+      }
+
+      .button:hover {
+        transform: translateY(-1px);
+      }
+
+      .button.primary {
+        background: var(--primary);
+        color: #fff;
+        box-shadow: 0 16px 34px rgba(45, 106, 79, 0.24);
+      }
+
+      .button.secondary {
+        background: #fff;
+        color: var(--primary);
+        border: 1px solid var(--outline);
+      }
+
+      .panel {
+        padding: 28px;
+        display: grid;
+        gap: 16px;
+      }
+
+      .panel h2 {
+        margin: 0;
+        font: 700 24px/1.2 'Nothing English Headline', 'Myanmar PaOh Rosemary', sans-serif;
+      }
+
+      .card {
+        border-radius: 24px;
+        padding: 18px;
+        background: var(--surface-soft);
+        border: 1px solid var(--outline);
+      }
+
+      .card small {
+        display: block;
+        color: var(--muted);
+        font: 700 11px/1.4 'Nothing English Headline', 'Myanmar PaOh Rosemary', sans-serif;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .card strong {
+        display: block;
+        margin-top: 8px;
+        font: 700 18px/1.5 'Nothing English Headline', 'Myanmar PaOh Rosemary', sans-serif;
+      }
+
+      .card p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.7;
+      }
+
+      @media (max-width: 900px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        .hero,
+        .panel {
+          padding: 24px;
+          border-radius: 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="badge">404 · Page Not Found</div>
+        <div class="code">404</div>
+        <h1>ရှာလိုက်သော စာမျက်နှာကို မတွေ့ပါ</h1>
+        <p class="lead">
+          သင်ဝင်လိုက်သော လိပ်စာသည် မရှိတော့ခြင်း၊ မှားယွင်းခြင်း၊ သို့မဟုတ် ပြောင်းရွှေ့ထားခြင်း ဖြစ်နိုင်ပါသည်။
+          Climate Monitor ပင်မစာမျက်နှာသို့ ပြန်သွားပြီး ဆက်လက်အသုံးပြုနိုင်ပါသည်။
+        </p>
+        <div class="actions">
+          <a class="button primary" href="/">ပင်မစာမျက်နှာသို့ ပြန်ရန်</a>
+          <a class="button secondary" href="/noti.html">Admin Page</a>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <h2>Quick Recovery</h2>
+        <div class="card">
+          <small>Home</small>
+          <strong>Climate dashboard ကို ပြန်ဖွင့်ပါ</strong>
+          <p>Weather Explorer, Live Risk Detector, notifications နဲ့ မြေပုံကို ပင်မစာမျက်နှာမှ ပြန်ဝင်နိုင်ပါသည်။</p>
+        </div>
+        <div class="card">
+          <small>Possible Causes</small>
+          <strong>Link အဟောင်း သို့မဟုတ် URL မှားနေခြင်း</strong>
+          <p>Direct path, bookmark ဟောင်း, ဒါမှမဟုတ် typo ပါသော URL ကြောင့် ဒီ 404 page ကို ရောက်လာနိုင်ပါသည်။</p>
+        </div>
+        <div class="card">
+          <small>Status</small>
+          <strong>Website is running</strong>
+          <p>ပင်မ app မပျက်ပါ။ လိပ်စာမှားနေခြင်းသာ ဖြစ်နိုင်ပြီး homepage ကနေ ဆက်သုံးနိုင်ပါသည်။</p>
+        </div>
+      </aside>
+    </main>
+  </body>
+</html>
