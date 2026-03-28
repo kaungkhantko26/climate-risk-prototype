@@ -2,8 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Nothing English Text';
+  src: url('/fonts/NType82-Regular.otf') format('opentype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF,
+    U+0100-024F,
+    U+1E00-1EFF,
+    U+2000-206F,
+    U+20A0-20CF;
+}
+
+@font-face {
+  font-family: 'Nothing English Headline';
+  src: url('/fonts/NType82-Headline.otf') format('opentype');
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF,
+    U+0100-024F,
+    U+1E00-1EFF,
+    U+2000-206F,
+    U+20A0-20CF;
+}
+
 body {
-  font-family: 'Noto Serif', 'Padauk', serif;
+  font-family: 'Nothing English Text', 'Noto Serif', 'Padauk', serif;
 }
 
 .material-symbols-outlined {

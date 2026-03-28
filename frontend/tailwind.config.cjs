@@ -29,9 +29,9 @@ module.exports = {
         'surface-container-high': '#eaead1',
       },
       fontFamily: {
-        headline: ['Be Vietnam Pro', 'Padauk', 'sans-serif'],
-        body: ['Noto Serif', 'Padauk', 'serif'],
-        label: ['Be Vietnam Pro', 'Padauk', 'sans-serif'],
+        headline: ['Nothing English Headline', 'Padauk', 'sans-serif'],
+        body: ['Nothing English Text', 'Noto Serif', 'Padauk', 'serif'],
+        label: ['Nothing English Text', 'Padauk', 'sans-serif'],
       },
       borderRadius: {
         DEFAULT: '0.5rem',
