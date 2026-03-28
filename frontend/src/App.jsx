@@ -2019,7 +2019,7 @@ export default function App() {
                       <label className="block">
                         <span className="text-xs uppercase font-label tracking-[0.24em] text-white/72">Search City</span>
                         <input
-                          className="mt-2 w-full rounded-2xl border border-white/20 bg-white/12 px-4 py-3.5 text-white placeholder:text-white/55 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/30"
+                          className="mt-2 w-full rounded-2xl border border-white/55 bg-white px-4 py-3.5 text-[#173b31] caret-[#173b31] shadow-inner placeholder:text-slate-400 focus:border-white focus:outline-none focus:ring-2 focus:ring-white/40"
                           onChange={(event) => setWeatherQuery(event.target.value)}
                           placeholder="Yangon, Mandalay, Bangkok..."
                           type="text"
