@@ -86,6 +86,228 @@ const defaultForm = {
   crop: 'Rice',
 }
 
+const OPEN_METEO_GEOCODING_API = 'https://geocoding-api.open-meteo.com/v1/search'
+const OPEN_METEO_FORECAST_API = 'https://api.open-meteo.com/v1/forecast'
+const OPEN_METEO_SOURCE_LABEL = 'Open-Meteo public API'
+const DEFAULT_WEATHER_PLACE = {
+  name: 'Yangon',
+  admin1: 'Yangon Region',
+  country: 'Myanmar',
+  latitude: 16.8661,
+  longitude: 96.1951,
+  timezone: 'Asia/Yangon',
+}
+
+const buildWeatherSearchLabel = (place) => (
+  [place?.name, place?.admin1, place?.country].filter(Boolean).join(', ')
+)
+
+const normalizeWeatherPlace = (place) => ({
+  id: place.id || `${place.name}-${place.latitude}-${place.longitude}`,
+  name: place.name || 'Unknown place',
+  admin1: place.admin1 || place.admin2 || place.admin3 || '',
+  country: place.country || '',
+  latitude: Number(place.latitude),
+  longitude: Number(place.longitude),
+  timezone: place.timezone || 'auto',
+})
+
+const getWeatherCodeMeta = (code, isDay = 1) => {
+  if (code === 0) {
+    return {
+      label: isDay ? 'နေသာ' : 'ကောင်းကင်ရှင်း',
+      icon: isDay ? 'sunny' : 'clear_night',
+      theme: 'from-[#1d4e89] via-[#3b82f6] to-[#93c5fd]',
+      chipClass: 'bg-white/16 text-white border-white/12',
+    }
+  }
+
+  if (code === 1 || code === 2) {
+    return {
+      label: 'တိမ်အနည်းငယ်',
+      icon: isDay ? 'partly_cloudy_day' : 'partly_cloudy_night',
+      theme: 'from-[#295b73] via-[#4f8ea6] to-[#a7cde0]',
+      chipClass: 'bg-white/16 text-white border-white/12',
+    }
+  }
+
+  if (code === 3) {
+    return {
+      label: 'တိမ်ထူ',
+      icon: 'cloud',
+      theme: 'from-[#425466] via-[#65788c] to-[#bcc8d4]',
+      chipClass: 'bg-white/16 text-white border-white/12',
+    }
+  }
+
+  if (code === 45 || code === 48) {
+    return {
+      label: 'မြူထူ',
+      icon: 'foggy',
+      theme: 'from-[#5b6777] via-[#8d99a7] to-[#d7dee6]',
+      chipClass: 'bg-white/16 text-white border-white/12',
+    }
+  }
+
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) {
+    return {
+      label: 'မိုးရွာနိုင်',
+      icon: 'rainy',
+      theme: 'from-[#0f3d56] via-[#256b8b] to-[#6ec5e8]',
+      chipClass: 'bg-white/16 text-white border-white/12',
+    }
+  }
+
+  if ([71, 73, 75, 77, 85, 86].includes(code)) {
+    return {
+      label: 'နှင်း/ရေခဲ',
+      icon: 'weather_snowy',
+      theme: 'from-[#54667a] via-[#87a5bb] to-[#ebf5ff]',
+      chipClass: 'bg-white/16 text-white border-white/12',
+    }
+  }
+
+  if ([95, 96, 99].includes(code)) {
+    return {
+      label: 'မိုးသက်မုန်တိုင်း',
+      icon: 'thunderstorm',
+      theme: 'from-[#37214d] via-[#694b9a] to-[#c7b4f6]',
+      chipClass: 'bg-white/16 text-white border-white/12',
+    }
+  }
+
+  return {
+    label: 'ရာသီဥတု ပြောင်းလဲနေ',
+    icon: 'wb_twilight',
+    theme: 'from-[#275443] via-[#3e7f63] to-[#9fd7ba]',
+    chipClass: 'bg-white/16 text-white border-white/12',
+  }
+}
+
+const formatWeatherDayLabel = (value) => {
+  if (!value) return '--'
+
+  try {
+    return new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(new Date(value))
+  } catch {
+    return value
+  }
+}
+
+const formatWeatherDateLabel = (value) => {
+  if (!value) return '--'
+
+  try {
+    return new Intl.DateTimeFormat('my-MM', { day: 'numeric', month: 'short' }).format(new Date(value))
+  } catch {
+    return value
+  }
+}
+
+const formatWeatherHourLabel = (value) => {
+  if (!value) return '--:--'
+
+  try {
+    return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+  } catch {
+    return value
+  }
+}
+
+const getWeatherDailyCards = (forecast) => {
+  if (!forecast?.daily?.time?.length) return []
+
+  return forecast.daily.time.map((time, index) => ({
+    time,
+    weatherCode: forecast.daily.weather_code?.[index],
+    tempMax: forecast.daily.temperature_2m_max?.[index],
+    tempMin: forecast.daily.temperature_2m_min?.[index],
+    precipitationSum: forecast.daily.precipitation_sum?.[index],
+    precipitationProbability: forecast.daily.precipitation_probability_max?.[index],
+    windMax: forecast.daily.wind_speed_10m_max?.[index],
+  }))
+}
+
+const getWeatherHourlyCards = (forecast, limit = 6) => {
+  if (!forecast?.hourly?.time?.length) return []
+
+  const startIndex = Math.max(
+    forecast.hourly.time.indexOf(forecast.current?.time),
+    0,
+  )
+
+  return forecast.hourly.time.slice(startIndex, startIndex + limit).map((time, index) => {
+    const entryIndex = startIndex + index
+
+    return {
+      time,
+      temperature: forecast.hourly.temperature_2m?.[entryIndex],
+      precipitationProbability: forecast.hourly.precipitation_probability?.[entryIndex],
+      weatherCode: forecast.hourly.weather_code?.[entryIndex],
+      windSpeed: forecast.hourly.wind_speed_10m?.[entryIndex],
+    }
+  })
+}
+
+const getBestFieldworkWindow = (hourlyCards) => {
+  if (!hourlyCards.length) return null
+
+  return [...hourlyCards].sort((left, right) => {
+    const leftScore = (left.precipitationProbability || 0) + Math.max((left.windSpeed || 0) - 15, 0)
+    const rightScore = (right.precipitationProbability || 0) + Math.max((right.windSpeed || 0) - 15, 0)
+    return leftScore - rightScore
+  })[0]
+}
+
+const getWeatherGuidance = (forecast) => {
+  const current = forecast?.current
+  const dailyCards = getWeatherDailyCards(forecast)
+  const today = dailyCards[0]
+
+  if (!current || !today) {
+    return {
+      icon: 'assistant',
+      title: 'Weather briefing loading',
+      body: 'Forecast data ကို လက်ရှိ ချိတ်ဆက်နေပါသည်။',
+      toneClass: 'bg-primary-container text-on-primary-container',
+    }
+  }
+
+  if ((today.precipitationProbability || 0) >= 70 || (today.precipitationSum || 0) >= 12) {
+    return {
+      icon: 'umbrella',
+      title: 'ရေစီးဆင်းမှုနဲ့ drainage ကို အရင်စစ်ပါ',
+      body: 'ဒီနေ့ မိုးရေများနိုင်သဖြင့် မြေပြင်အလုပ်ကြမ်းများနဲ့ chemical spray လုပ်ငန်းကို နောက်သို့ရွှေ့ထားသင့်ပါသည်။',
+      toneClass: 'bg-[#d9f1ff] text-[#0f4a69]',
+    }
+  }
+
+  if ((current.apparent_temperature || 0) >= 37) {
+    return {
+      icon: 'wb_sunny',
+      title: 'နေ့လယ်ပိုင်း အပူလွန်ကဲနိုင်ပါသည်',
+      body: 'ရေသွင်းအချိန်ကို မနက်ပိုင်းသို့ ရွှေ့ပြီး young plants အတွက် shade cover သို့မဟုတ် mulch ကို စဉ်းစားသင့်ပါသည်။',
+      toneClass: 'bg-[#fff1d6] text-[#8a5600]',
+    }
+  }
+
+  if ((current.wind_speed_10m || 0) >= 24) {
+    return {
+      icon: 'air',
+      title: 'လေတိုက်နှုန်း မြင့်နေပါသည်',
+      body: 'Spray operation နဲ့ မော့တိုင်အခြေခံလုပ်ငန်းများကို လျှော့ချပြီး support lines များကို တင်းကျပ်စွာ စစ်ဆေးပါ။',
+      toneClass: 'bg-[#ede9ff] text-[#4b2f85]',
+    }
+  }
+
+  return {
+    icon: 'eco',
+    title: 'အပြင်လုပ်ငန်း အတွက် အချိန်ကောင်းပါသည်',
+    body: 'မိုးရွာနိုင်ချေ မမြင့်ဘဲ လေတိုက်နှုန်းလည်း တော်တော်ငြိမ်သဖြင့် pruning, scouting, soil check စသည့်လုပ်ငန်းများ အဆင်ပြေနိုင်ပါသည်။',
+    toneClass: 'bg-primary-container text-on-primary-container',
+  }
+}
+
 const readErrorMessage = async (response, fallbackMessage) => {
   try {
     const payload = await response.json()
@@ -461,6 +683,14 @@ export default function App() {
   const [installGateStatus, setInstallGateStatus] = useState('')
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null)
   const [notificationPromptDismissed, setNotificationPromptDismissed] = useState(false)
+  const [weatherQuery, setWeatherQuery] = useState(DEFAULT_WEATHER_PLACE.name)
+  const [weatherPlaces, setWeatherPlaces] = useState([])
+  const [weatherLocation, setWeatherLocation] = useState(DEFAULT_WEATHER_PLACE)
+  const [weatherForecast, setWeatherForecast] = useState(null)
+  const [weatherExplorerStatus, setWeatherExplorerStatus] = useState('Yangon forecast ကို ချိတ်ဆက်နေပါသည်...')
+  const [weatherExplorerError, setWeatherExplorerError] = useState('')
+  const [isWeatherSearching, setIsWeatherSearching] = useState(false)
+  const [isWeatherLoading, setIsWeatherLoading] = useState(false)
   const lastSystemNotificationAtRef = useRef(0)
   const lastGreetingIndexRef = useRef(-1)
   const deliveredBroadcastIdRef = useRef('')
@@ -723,6 +953,69 @@ export default function App() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+
+    const loadWeatherForecast = async () => {
+      if (
+        weatherLocation?.latitude === null
+        || weatherLocation?.latitude === undefined
+        || weatherLocation?.longitude === null
+        || weatherLocation?.longitude === undefined
+      ) return
+
+      setIsWeatherLoading(true)
+      setWeatherExplorerError('')
+      setWeatherExplorerStatus(`${buildWeatherSearchLabel(weatherLocation)} အတွက် forecast ကို ရယူနေပါသည်...`)
+
+      try {
+        const params = new URLSearchParams({
+          latitude: String(weatherLocation.latitude),
+          longitude: String(weatherLocation.longitude),
+          current: 'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,wind_speed_10m,is_day',
+          daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max',
+          hourly: 'temperature_2m,precipitation_probability,weather_code,wind_speed_10m',
+          forecast_days: '5',
+          timezone: weatherLocation.timezone || 'auto',
+        })
+
+        const response = await fetch(`${OPEN_METEO_FORECAST_API}?${params.toString()}`, {
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          throw new Error('Weather explorer data ကို မရရှိနိုင်ပါ။')
+        }
+
+        const nextForecast = await response.json()
+        if (cancelled) return
+
+        setWeatherForecast({
+          ...nextForecast,
+          resolvedLocation: weatherLocation,
+        })
+        setWeatherExplorerStatus(`${buildWeatherSearchLabel(weatherLocation)} အတွက် forecast ကို update လုပ်ပြီးပါပြီ။`)
+      } catch (error) {
+        if (cancelled || error.name === 'AbortError') return
+
+        setWeatherForecast(null)
+        setWeatherExplorerError(error.message || 'Weather explorer data ကို မရရှိနိုင်ပါ။')
+        setWeatherExplorerStatus('Weather explorer ကို ချိတ်ဆက်ရာတွင် ပြဿနာရှိနေပါသည်။')
+      } finally {
+        if (!cancelled) {
+          setIsWeatherLoading(false)
+        }
+      }
+    }
+
+    void loadWeatherForecast()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [weatherLocation])
 
   useEffect(() => {
     if (activeView !== 'alerts' || !API_BASE) return
@@ -1047,6 +1340,43 @@ export default function App() {
   const temperatureNotificationStatusLabel = notificationChannels.temperature
     ? 'Temperature alerts are on'
     : 'Temperature alerts are off'
+  const weatherConditionMeta = useMemo(
+    () => getWeatherCodeMeta(weatherForecast?.current?.weather_code, weatherForecast?.current?.is_day),
+    [weatherForecast],
+  )
+  const weatherDailyCards = useMemo(() => getWeatherDailyCards(weatherForecast), [weatherForecast])
+  const weatherHourlyCards = useMemo(() => getWeatherHourlyCards(weatherForecast), [weatherForecast])
+  const bestFieldworkWindow = useMemo(
+    () => getBestFieldworkWindow(weatherHourlyCards),
+    [weatherHourlyCards],
+  )
+  const weatherGuidance = useMemo(() => getWeatherGuidance(weatherForecast), [weatherForecast])
+  const weatherLocationLabel = useMemo(
+    () => buildWeatherSearchLabel(weatherForecast?.resolvedLocation || weatherLocation),
+    [weatherForecast, weatherLocation],
+  )
+  const weatherSpotlightCards = useMemo(() => {
+    if (!weatherForecast?.current || !weatherDailyCards.length) return []
+
+    return [
+      {
+        label: 'Feels Like',
+        value: formatValue(weatherForecast.current.apparent_temperature, '°C', 1),
+      },
+      {
+        label: 'Humidity',
+        value: formatValue(weatherForecast.current.relative_humidity_2m, '%'),
+      },
+      {
+        label: 'Today Rain',
+        value: formatValue(weatherDailyCards[0]?.precipitation_sum, ' mm', 1),
+      },
+      {
+        label: 'Peak Wind',
+        value: formatValue(weatherDailyCards[0]?.windMax, ' km/h', 0),
+      },
+    ]
+  }, [weatherDailyCards, weatherForecast])
 
   const showSystemNotification = async (title, body, options = {}) => {
     if (!notificationsSupported || Notification.permission !== 'granted') return false
@@ -1218,6 +1548,85 @@ export default function App() {
         },
       },
     )
+  }
+
+  const selectWeatherPlace = (place) => {
+    const normalizedPlace = normalizeWeatherPlace(place)
+    setWeatherLocation(normalizedPlace)
+    setWeatherQuery(buildWeatherSearchLabel(normalizedPlace))
+    setWeatherPlaces([])
+    setWeatherExplorerError('')
+  }
+
+  const searchWeatherPlaces = async (event) => {
+    event?.preventDefault()
+
+    const query = weatherQuery.trim()
+    if (!query) {
+      setWeatherPlaces([])
+      setWeatherExplorerError('ရှာလိုသော မြို့အမည် သို့မဟုတ် နေရာအမည်ကို ထည့်ပါ။')
+      return
+    }
+
+    setIsWeatherSearching(true)
+    setWeatherExplorerError('')
+    setWeatherExplorerStatus(`"${query}" ကို ရှာဖွေနေပါသည်...`)
+
+    try {
+      const params = new URLSearchParams({
+        name: query,
+        count: '6',
+        language: 'en',
+        format: 'json',
+      })
+      const response = await fetch(`${OPEN_METEO_GEOCODING_API}?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error('Weather search ကို မရရှိနိုင်ပါ။')
+      }
+
+      const payload = await response.json()
+      const nextPlaces = (payload.results || []).map(normalizeWeatherPlace)
+      setWeatherPlaces(nextPlaces)
+
+      if (!nextPlaces.length) {
+        setWeatherExplorerStatus('ဒီနာမည်နဲ့ ကိုက်ညီသော weather location ကို မတွေ့ပါ။')
+        return
+      }
+
+      if (nextPlaces.length === 1) {
+        selectWeatherPlace(nextPlaces[0])
+        setWeatherExplorerStatus(`${buildWeatherSearchLabel(nextPlaces[0])} ကို ရွေးပြီးပါပြီ။`)
+        return
+      }
+
+      setWeatherExplorerStatus('အောက်က result များထဲမှ နေရာတစ်ခုကို ရွေးပါ။')
+    } catch (error) {
+      setWeatherPlaces([])
+      setWeatherExplorerError(error.message || 'Weather search ကို မရရှိနိုင်ပါ။')
+      setWeatherExplorerStatus('Weather search ကို ပြန်ကြိုးစားပါ။')
+    } finally {
+      setIsWeatherSearching(false)
+    }
+  }
+
+  const useAlertWeatherLocation = () => {
+    const latitude = currentAlert?.weather?.latitude
+    const longitude = currentAlert?.weather?.longitude
+
+    if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) {
+      setWeatherExplorerError('ရွေးထားသော alert မှာ coordinate data မရှိသေးပါ။')
+      return
+    }
+
+    selectWeatherPlace({
+      name: currentAlert?.location || 'Selected alert',
+      admin1: currentAlert?.crop ? `${currentAlert.crop} watch` : '',
+      country: 'Myanmar',
+      latitude,
+      longitude,
+      timezone: 'Asia/Yangon',
+    })
+    setWeatherExplorerStatus(`${currentAlert?.location || 'Selected alert'} အတွက် live weather ကို ပြောင်းထားပါသည်။`)
   }
 
   const updateAdminBroadcastField = (key, value) => {
@@ -1534,6 +1943,261 @@ export default function App() {
             <span className="font-headline font-bold text-sm text-center">{action.label}</span>
           </button>
         ))}
+      </section>
+
+      <section className="relative overflow-hidden rounded-[2rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(241,247,241,0.96))] p-5 md:p-7 shadow-[0_18px_60px_rgba(27,29,14,0.08)]">
+        <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top_left,rgba(110,197,232,0.26),transparent_48%),radial-gradient(circle_at_top_right,rgba(45,106,79,0.18),transparent_42%)]"></div>
+        <div className="absolute -right-10 top-6 h-32 w-32 rounded-full bg-[#b1f0ce]/35 blur-3xl"></div>
+        <div className="absolute -left-8 bottom-8 h-28 w-28 rounded-full bg-[#a7cde0]/30 blur-3xl"></div>
+
+        <div className="relative z-10">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+            <div>
+              <div className="text-xs uppercase font-label text-primary tracking-[0.28em]">Weather Explorer</div>
+              <h3 className="mt-2 text-3xl md:text-4xl font-headline font-extrabold text-on-surface">
+                Public weather API နဲ့ မြို့အလိုက် forecast ကို တိုက်ရိုက်ကြည့်နိုင်ပါသည်
+              </h3>
+              <p className="mt-3 max-w-3xl text-on-surface-variant font-body leading-7">
+                Dashboard ထဲကနေ Open-Meteo forecast ကို တိုက်ရိုက်ချိတ်ဆက်ထားပြီး current condition, ၅ ရက် outlook, နဲ့ fieldwork window ကို တစ်ခါတည်းကြည့်နိုင်ပါသည်။
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-outline/10 bg-white/80 px-4 py-3 backdrop-blur-md">
+              <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Source</div>
+              <div className="mt-1 font-headline font-bold text-on-surface">{OPEN_METEO_SOURCE_LABEL}</div>
+              <div className="text-sm text-on-surface-variant font-body">No API key required</div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6">
+            <div className={`relative overflow-hidden rounded-[2rem] bg-gradient-to-br ${weatherConditionMeta.theme} p-6 md:p-7 text-white shadow-[0_18px_60px_rgba(15,61,86,0.24)]`}>
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_44%)]"></div>
+              <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl"></div>
+
+              <div className="relative z-10">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-label font-bold uppercase tracking-wide backdrop-blur-md bg-white/10 border-white/15">
+                      <span className="material-symbols-outlined text-base">pin_drop</span>
+                      {weatherLocationLabel}
+                    </div>
+                    <div className="mt-4 flex items-end gap-4">
+                      <span className="material-symbols-outlined text-6xl md:text-7xl">{weatherConditionMeta.icon}</span>
+                      <div>
+                        <div className="text-5xl md:text-6xl font-headline font-extrabold leading-none">
+                          {formatValue(weatherForecast?.current?.temperature_2m, '°C', 1)}
+                        </div>
+                        <div className="mt-2 text-lg font-headline font-bold">{weatherConditionMeta.label}</div>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-headline font-bold ${weatherConditionMeta.chipClass}`}>
+                        Rain now {formatValue(weatherForecast?.current?.precipitation, ' mm', 1)}
+                      </span>
+                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-headline font-bold ${weatherConditionMeta.chipClass}`}>
+                        Wind {formatValue(weatherForecast?.current?.wind_speed_10m, ' km/h', 0)}
+                      </span>
+                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-headline font-bold ${weatherConditionMeta.chipClass}`}>
+                        Updated {formatWeatherHourLabel(weatherForecast?.current?.time)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="w-full max-w-md rounded-[1.75rem] bg-white/14 p-4 backdrop-blur-md border border-white/12">
+                    <form className="space-y-3" onSubmit={searchWeatherPlaces}>
+                      <label className="block">
+                        <span className="text-xs uppercase font-label tracking-[0.24em] text-white/72">Search City</span>
+                        <input
+                          className="mt-2 w-full rounded-2xl border border-white/20 bg-white/12 px-4 py-3.5 text-white placeholder:text-white/55 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/30"
+                          onChange={(event) => setWeatherQuery(event.target.value)}
+                          placeholder="Yangon, Mandalay, Bangkok..."
+                          type="text"
+                          value={weatherQuery}
+                        />
+                      </label>
+
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          className="flex-1 rounded-full bg-white px-5 py-3 text-sm font-headline font-bold text-[#0f3d56] shadow-lg transition-all hover:shadow-xl disabled:opacity-60"
+                          disabled={isWeatherSearching}
+                          type="submit"
+                        >
+                          {isWeatherSearching ? 'Searching...' : 'Weather ကို ရှာရန်'}
+                        </button>
+                        <button
+                          className="rounded-full border border-white/25 bg-white/10 px-5 py-3 text-sm font-headline font-bold text-white transition-all hover:bg-white/16 disabled:opacity-60"
+                          disabled={!currentAlert?.weather}
+                          onClick={useAlertWeatherLocation}
+                          type="button"
+                        >
+                          Alert နေရာသုံးရန်
+                        </button>
+                      </div>
+                    </form>
+
+                    <div className="mt-4 text-sm font-body text-white/84">{weatherExplorerStatus}</div>
+                    {weatherExplorerError ? (
+                      <div className="mt-3 rounded-2xl bg-white/12 px-4 py-3 text-sm font-body text-white">
+                        {weatherExplorerError}
+                      </div>
+                    ) : null}
+
+                    {weatherPlaces.length > 0 ? (
+                      <div className="mt-4 grid grid-cols-1 gap-2">
+                        {weatherPlaces.map((place) => (
+                          <button
+                            key={place.id}
+                            className="rounded-2xl border border-white/14 bg-white/8 px-4 py-3 text-left transition-all hover:bg-white/14"
+                            onClick={() => selectWeatherPlace(place)}
+                            type="button"
+                          >
+                            <div className="font-headline font-bold text-white">{place.name}</div>
+                            <div className="mt-1 text-sm text-white/72">{buildWeatherSearchLabel(place)}</div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className={`rounded-[2rem] p-5 border border-outline/10 shadow-[0_12px_40px_rgba(27,29,14,0.06)] ${weatherGuidance.toneClass}`}>
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-white/60 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-3xl">{weatherGuidance.icon}</span>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase font-label tracking-[0.24em] opacity-75">Field Advice</div>
+                    <h4 className="mt-2 text-2xl font-headline font-bold">{weatherGuidance.title}</h4>
+                    <p className="mt-2 font-body leading-7">{weatherGuidance.body}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {weatherSpotlightCards.length > 0 ? weatherSpotlightCards.map((card) => (
+                  <div
+                    key={card.label}
+                    className="rounded-[1.75rem] border border-outline/10 bg-white/85 p-4 shadow-[0_10px_30px_rgba(27,29,14,0.05)] backdrop-blur-md"
+                  >
+                    <div className="text-xs uppercase font-label tracking-wide text-on-surface-variant">{card.label}</div>
+                    <div className="mt-2 text-2xl font-headline font-extrabold text-on-surface">{card.value}</div>
+                  </div>
+                )) : (
+                  <div className="col-span-2 rounded-[1.75rem] border border-outline/10 bg-white/80 p-5 text-on-surface-variant font-body">
+                    Weather spotlight cards ကို လုပ်ဆောင်နေပါသည်...
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-[1.75rem] border border-outline/10 bg-[#173b31] p-5 text-white shadow-[0_16px_40px_rgba(23,59,49,0.2)]">
+                <div className="text-xs uppercase font-label tracking-[0.24em] text-white/64">Best Window</div>
+                <div className="mt-3 text-2xl font-headline font-extrabold">
+                  {bestFieldworkWindow ? formatWeatherHourLabel(bestFieldworkWindow.time) : '--:--'}
+                </div>
+                <p className="mt-2 text-sm font-body leading-6 text-white/78">
+                  {bestFieldworkWindow
+                    ? `Rain chance ${formatValue(bestFieldworkWindow.precipitationProbability, '%')} နဲ့ wind ${formatValue(bestFieldworkWindow.windSpeed, ' km/h', 0)} ဖြစ်နေသဖြင့် အပြင်လုပ်ငန်းအတွက် အကောင်းဆုံး window ဖြစ်နိုင်ပါသည်။`
+                    : 'Hourly forecast data ကို လုပ်ဆောင်နေပါသည်။'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-6">
+            <div className="rounded-[2rem] border border-outline/10 bg-white/88 p-5 shadow-[0_12px_40px_rgba(27,29,14,0.05)]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase font-label tracking-[0.22em] text-primary">Next Hours</div>
+                  <h4 className="mt-2 text-2xl font-headline font-bold text-on-surface">Fieldwork Window</h4>
+                </div>
+                {isWeatherLoading ? (
+                  <div className="text-sm font-label text-on-surface-variant">Updating...</div>
+                ) : null}
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {weatherHourlyCards.length > 0 ? weatherHourlyCards.map((card) => {
+                  const hourlyMeta = getWeatherCodeMeta(card.weatherCode, 1)
+
+                  return (
+                    <div
+                      key={card.time}
+                      className="rounded-[1.5rem] border border-outline/10 bg-surface-container-low px-4 py-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-2xl bg-white flex items-center justify-center text-primary">
+                            <span className="material-symbols-outlined">{hourlyMeta.icon}</span>
+                          </div>
+                          <div>
+                            <div className="font-headline font-bold text-on-surface">{formatWeatherHourLabel(card.time)}</div>
+                            <div className="text-sm text-on-surface-variant font-body">{hourlyMeta.label}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-headline font-bold text-on-surface">{formatValue(card.temperature, '°C', 1)}</div>
+                          <div className="text-sm text-on-surface-variant font-body">
+                            Rain {formatValue(card.precipitationProbability, '%')} • Wind {formatValue(card.windSpeed, ' km/h', 0)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }) : (
+                  <div className="rounded-[1.5rem] border border-outline/10 bg-surface-container-low px-4 py-5 text-on-surface-variant font-body">
+                    Hourly forecast data ကို လုပ်ဆောင်နေပါသည်...
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-outline/10 bg-white/88 p-5 shadow-[0_12px_40px_rgba(27,29,14,0.05)]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase font-label tracking-[0.22em] text-primary">5-Day Outlook</div>
+                  <h4 className="mt-2 text-2xl font-headline font-bold text-on-surface">Forecast Ribbon</h4>
+                </div>
+                <div className="text-sm text-on-surface-variant font-body">{weatherLocationLabel}</div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                {weatherDailyCards.length > 0 ? weatherDailyCards.map((day) => {
+                  const dayMeta = getWeatherCodeMeta(day.weatherCode, 1)
+
+                  return (
+                    <article
+                      key={day.time}
+                      className="rounded-[1.6rem] border border-outline/10 bg-surface-container-low p-4"
+                    >
+                      <div className="text-xs uppercase font-label tracking-wide text-on-surface-variant">{formatWeatherDayLabel(day.time)}</div>
+                      <div className="text-sm font-body text-on-surface-variant">{formatWeatherDateLabel(day.time)}</div>
+                      <div className="mt-4 w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-primary">
+                        <span className="material-symbols-outlined">{dayMeta.icon}</span>
+                      </div>
+                      <div className="mt-4 font-headline font-bold text-on-surface">{dayMeta.label}</div>
+                      <div className="mt-3 text-2xl font-headline font-extrabold text-on-surface">
+                        {formatValue(day.tempMax, '°C', 0)}
+                      </div>
+                      <div className="text-sm font-body text-on-surface-variant">
+                        Low {formatValue(day.tempMin, '°C', 0)}
+                      </div>
+                      <div className="mt-3 text-sm font-body text-on-surface-variant leading-6">
+                        Rain {formatValue(day.precipitationProbability, '%')} • {formatValue(day.precipitationSum, ' mm', 1)}
+                      </div>
+                    </article>
+                  )
+                }) : (
+                  <div className="sm:col-span-2 xl:col-span-5 rounded-[1.6rem] border border-outline/10 bg-surface-container-low p-5 text-on-surface-variant font-body">
+                    Daily forecast data ကို လုပ်ဆောင်နေပါသည်...
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       {notificationsSupported && notificationPermission !== 'granted' && !notificationPromptDismissed ? (
