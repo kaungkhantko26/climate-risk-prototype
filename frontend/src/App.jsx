@@ -1945,7 +1945,7 @@ export default function App() {
         ))}
       </section>
 
-      <section className="relative overflow-hidden rounded-[2rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(241,247,241,0.96))] p-5 md:p-7 shadow-[0_18px_60px_rgba(27,29,14,0.08)]">
+      <section className="relative overflow-hidden rounded-[2rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(241,247,241,0.98))] p-5 md:p-7 shadow-[0_18px_60px_rgba(27,29,14,0.08)]">
         <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top_left,rgba(110,197,232,0.26),transparent_48%),radial-gradient(circle_at_top_right,rgba(45,106,79,0.18),transparent_42%)]"></div>
         <div className="absolute -right-10 top-6 h-32 w-32 rounded-full bg-[#b1f0ce]/35 blur-3xl"></div>
         <div className="absolute -left-8 bottom-8 h-28 w-28 rounded-full bg-[#a7cde0]/30 blur-3xl"></div>
@@ -1962,26 +1962,27 @@ export default function App() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-outline/10 bg-white/80 px-4 py-3 backdrop-blur-md">
+            <div className="rounded-2xl border border-outline/10 bg-white/82 px-4 py-3 backdrop-blur-md">
               <div className="text-xs uppercase font-label text-on-surface-variant tracking-wide">Source</div>
               <div className="mt-1 font-headline font-bold text-on-surface">{OPEN_METEO_SOURCE_LABEL}</div>
               <div className="text-sm text-on-surface-variant font-body">No API key required</div>
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6">
-            <div className={`relative overflow-hidden rounded-[2rem] bg-gradient-to-br ${weatherConditionMeta.theme} p-6 md:p-7 text-white shadow-[0_18px_60px_rgba(15,61,86,0.24)]`}>
+          <div className="mt-6 grid grid-cols-1 2xl:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)] gap-5">
+            <div className={`relative overflow-hidden rounded-[2rem] bg-gradient-to-br ${weatherConditionMeta.theme} p-5 md:p-7 text-white shadow-[0_18px_60px_rgba(15,61,86,0.24)]`}>
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_44%)]"></div>
               <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl"></div>
 
               <div className="relative z-10">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-5">
                   <div>
-                    <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-label font-bold uppercase tracking-wide backdrop-blur-md bg-white/10 border-white/15">
-                      <span className="material-symbols-outlined text-base">pin_drop</span>
-                      {weatherLocationLabel}
+                    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-label font-bold uppercase tracking-wide backdrop-blur-md">
+                      <span className="material-symbols-outlined shrink-0 text-base">pin_drop</span>
+                      <span className="truncate">{weatherLocationLabel}</span>
                     </div>
-                    <div className="mt-4 flex items-end gap-4">
+
+                    <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end">
                       <span className="material-symbols-outlined text-6xl md:text-7xl">{weatherConditionMeta.icon}</span>
                       <div>
                         <div className="text-5xl md:text-6xl font-headline font-extrabold leading-none">
@@ -1990,20 +1991,30 @@ export default function App() {
                         <div className="mt-2 text-lg font-headline font-bold">{weatherConditionMeta.label}</div>
                       </div>
                     </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-headline font-bold ${weatherConditionMeta.chipClass}`}>
-                        Rain now {formatValue(weatherForecast?.current?.precipitation, ' mm', 1)}
-                      </span>
-                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-headline font-bold ${weatherConditionMeta.chipClass}`}>
-                        Wind {formatValue(weatherForecast?.current?.wind_speed_10m, ' km/h', 0)}
-                      </span>
-                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-headline font-bold ${weatherConditionMeta.chipClass}`}>
-                        Updated {formatWeatherHourLabel(weatherForecast?.current?.time)}
-                      </span>
+
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-[1.5rem] border border-white/14 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-white/68 font-label">Rain Now</div>
+                        <div className="mt-2 text-xl font-headline font-extrabold">
+                          {formatValue(weatherForecast?.current?.precipitation, ' mm', 1)}
+                        </div>
+                      </div>
+                      <div className="rounded-[1.5rem] border border-white/14 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-white/68 font-label">Wind</div>
+                        <div className="mt-2 text-xl font-headline font-extrabold">
+                          {formatValue(weatherForecast?.current?.wind_speed_10m, ' km/h', 0)}
+                        </div>
+                      </div>
+                      <div className="rounded-[1.5rem] border border-white/14 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-white/68 font-label">Updated</div>
+                        <div className="mt-2 text-xl font-headline font-extrabold">
+                          {formatWeatherHourLabel(weatherForecast?.current?.time)}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="w-full max-w-md rounded-[1.75rem] bg-white/14 p-4 backdrop-blur-md border border-white/12">
+                  <div className="rounded-[1.75rem] border border-white/12 bg-white/14 p-4 backdrop-blur-md">
                     <form className="space-y-3" onSubmit={searchWeatherPlaces}>
                       <label className="block">
                         <span className="text-xs uppercase font-label tracking-[0.24em] text-white/72">Search City</span>
@@ -2016,9 +2027,9 @@ export default function App() {
                         />
                       </label>
 
-                      <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <button
-                          className="flex-1 rounded-full bg-white px-5 py-3 text-sm font-headline font-bold text-[#0f3d56] shadow-lg transition-all hover:shadow-xl disabled:opacity-60"
+                          className="rounded-full bg-white px-5 py-3 text-sm font-headline font-bold text-[#0f3d56] shadow-lg transition-all hover:shadow-xl disabled:opacity-60"
                           disabled={isWeatherSearching}
                           type="submit"
                         >
@@ -2035,19 +2046,23 @@ export default function App() {
                       </div>
                     </form>
 
-                    <div className="mt-4 text-sm font-body text-white/84">{weatherExplorerStatus}</div>
+                    <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-white/8 px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.18em] text-white/62 font-label">Status</div>
+                      <div className="mt-2 text-sm font-body leading-6 text-white/88">{weatherExplorerStatus}</div>
+                    </div>
+
                     {weatherExplorerError ? (
-                      <div className="mt-3 rounded-2xl bg-white/12 px-4 py-3 text-sm font-body text-white">
+                      <div className="mt-3 rounded-[1.5rem] border border-white/10 bg-white/12 px-4 py-3 text-sm font-body text-white">
                         {weatherExplorerError}
                       </div>
                     ) : null}
 
                     {weatherPlaces.length > 0 ? (
-                      <div className="mt-4 grid grid-cols-1 gap-2">
+                      <div className="mt-3 max-h-64 overflow-y-auto space-y-2 pr-1">
                         {weatherPlaces.map((place) => (
                           <button
                             key={place.id}
-                            className="rounded-2xl border border-white/14 bg-white/8 px-4 py-3 text-left transition-all hover:bg-white/14"
+                            className="w-full rounded-[1.4rem] border border-white/14 bg-white/8 px-4 py-3 text-left transition-all hover:bg-white/14"
                             onClick={() => selectWeatherPlace(place)}
                             type="button"
                           >
@@ -2062,39 +2077,23 @@ export default function App() {
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className={`rounded-[2rem] p-5 border border-outline/10 shadow-[0_12px_40px_rgba(27,29,14,0.06)] ${weatherGuidance.toneClass}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-1 gap-4">
+              <div className={`rounded-[2rem] border border-outline/10 p-5 shadow-[0_12px_40px_rgba(27,29,14,0.06)] ${weatherGuidance.toneClass}`}>
                 <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-white/60 flex items-center justify-center shrink-0">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/60">
                     <span className="material-symbols-outlined text-3xl">{weatherGuidance.icon}</span>
                   </div>
                   <div>
                     <div className="text-xs uppercase font-label tracking-[0.24em] opacity-75">Field Advice</div>
-                    <h4 className="mt-2 text-2xl font-headline font-bold">{weatherGuidance.title}</h4>
+                    <h4 className="mt-2 text-xl md:text-2xl font-headline font-bold">{weatherGuidance.title}</h4>
                     <p className="mt-2 font-body leading-7">{weatherGuidance.body}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                {weatherSpotlightCards.length > 0 ? weatherSpotlightCards.map((card) => (
-                  <div
-                    key={card.label}
-                    className="rounded-[1.75rem] border border-outline/10 bg-white/85 p-4 shadow-[0_10px_30px_rgba(27,29,14,0.05)] backdrop-blur-md"
-                  >
-                    <div className="text-xs uppercase font-label tracking-wide text-on-surface-variant">{card.label}</div>
-                    <div className="mt-2 text-2xl font-headline font-extrabold text-on-surface">{card.value}</div>
-                  </div>
-                )) : (
-                  <div className="col-span-2 rounded-[1.75rem] border border-outline/10 bg-white/80 p-5 text-on-surface-variant font-body">
-                    Weather spotlight cards ကို လုပ်ဆောင်နေပါသည်...
-                  </div>
-                )}
-              </div>
-
               <div className="rounded-[1.75rem] border border-outline/10 bg-[#173b31] p-5 text-white shadow-[0_16px_40px_rgba(23,59,49,0.2)]">
                 <div className="text-xs uppercase font-label tracking-[0.24em] text-white/64">Best Window</div>
-                <div className="mt-3 text-2xl font-headline font-extrabold">
+                <div className="mt-3 text-2xl md:text-3xl font-headline font-extrabold">
                   {bestFieldworkWindow ? formatWeatherHourLabel(bestFieldworkWindow.time) : '--:--'}
                 </div>
                 <p className="mt-2 text-sm font-body leading-6 text-white/78">
@@ -2106,8 +2105,24 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-6">
-            <div className="rounded-[2rem] border border-outline/10 bg-white/88 p-5 shadow-[0_12px_40px_rgba(27,29,14,0.05)]">
+          <div className="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {weatherSpotlightCards.length > 0 ? weatherSpotlightCards.map((card) => (
+              <div
+                key={card.label}
+                className="rounded-[1.75rem] border border-outline/10 bg-white/88 p-4 shadow-[0_10px_30px_rgba(27,29,14,0.05)] backdrop-blur-md"
+              >
+                <div className="text-xs uppercase font-label tracking-wide text-on-surface-variant">{card.label}</div>
+                <div className="mt-2 text-xl md:text-2xl font-headline font-extrabold text-on-surface">{card.value}</div>
+              </div>
+            )) : (
+              <div className="col-span-2 lg:col-span-4 rounded-[1.75rem] border border-outline/10 bg-white/80 p-5 text-on-surface-variant font-body">
+                Weather spotlight cards ကို လုပ်ဆောင်နေပါသည်...
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] gap-6">
+            <div className="rounded-[2rem] border border-outline/10 bg-white/90 p-5 shadow-[0_12px_40px_rgba(27,29,14,0.05)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs uppercase font-label tracking-[0.22em] text-primary">Next Hours</div>
@@ -2118,18 +2133,18 @@ export default function App() {
                 ) : null}
               </div>
 
-              <div className="mt-5 space-y-3">
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {weatherHourlyCards.length > 0 ? weatherHourlyCards.map((card) => {
                   const hourlyMeta = getWeatherCodeMeta(card.weatherCode, 1)
 
                   return (
                     <div
                       key={card.time}
-                      className="rounded-[1.5rem] border border-outline/10 bg-surface-container-low px-4 py-3"
+                      className="rounded-[1.5rem] border border-outline/10 bg-surface-container-low p-4"
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-2xl bg-white flex items-center justify-center text-primary">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-primary">
                             <span className="material-symbols-outlined">{hourlyMeta.icon}</span>
                           </div>
                           <div>
@@ -2137,25 +2152,25 @@ export default function App() {
                             <div className="text-sm text-on-surface-variant font-body">{hourlyMeta.label}</div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-headline font-bold text-on-surface">{formatValue(card.temperature, '°C', 1)}</div>
-                          <div className="text-sm text-on-surface-variant font-body">
-                            Rain {formatValue(card.precipitationProbability, '%')} • Wind {formatValue(card.windSpeed, ' km/h', 0)}
-                          </div>
+                        <div className="text-right font-headline font-bold text-on-surface">
+                          {formatValue(card.temperature, '°C', 1)}
                         </div>
+                      </div>
+                      <div className="mt-3 text-sm text-on-surface-variant font-body leading-6">
+                        Rain {formatValue(card.precipitationProbability, '%')} • Wind {formatValue(card.windSpeed, ' km/h', 0)}
                       </div>
                     </div>
                   )
                 }) : (
-                  <div className="rounded-[1.5rem] border border-outline/10 bg-surface-container-low px-4 py-5 text-on-surface-variant font-body">
+                  <div className="sm:col-span-2 rounded-[1.5rem] border border-outline/10 bg-surface-container-low px-4 py-5 text-on-surface-variant font-body">
                     Hourly forecast data ကို လုပ်ဆောင်နေပါသည်...
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-outline/10 bg-white/88 p-5 shadow-[0_12px_40px_rgba(27,29,14,0.05)]">
-              <div className="flex items-center justify-between gap-3">
+            <div className="rounded-[2rem] border border-outline/10 bg-white/90 p-5 shadow-[0_12px_40px_rgba(27,29,14,0.05)]">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                 <div>
                   <div className="text-xs uppercase font-label tracking-[0.22em] text-primary">5-Day Outlook</div>
                   <h4 className="mt-2 text-2xl font-headline font-bold text-on-surface">Forecast Ribbon</h4>
@@ -2163,34 +2178,41 @@ export default function App() {
                 <div className="text-sm text-on-surface-variant font-body">{weatherLocationLabel}</div>
               </div>
 
-              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-                {weatherDailyCards.length > 0 ? weatherDailyCards.map((day) => {
-                  const dayMeta = getWeatherCodeMeta(day.weatherCode, 1)
+              <div className="mt-5 overflow-x-auto pb-2">
+                {weatherDailyCards.length > 0 ? (
+                  <div className="flex gap-3 min-w-max">
+                    {weatherDailyCards.map((day) => {
+                      const dayMeta = getWeatherCodeMeta(day.weatherCode, 1)
 
-                  return (
-                    <article
-                      key={day.time}
-                      className="rounded-[1.6rem] border border-outline/10 bg-surface-container-low p-4"
-                    >
-                      <div className="text-xs uppercase font-label tracking-wide text-on-surface-variant">{formatWeatherDayLabel(day.time)}</div>
-                      <div className="text-sm font-body text-on-surface-variant">{formatWeatherDateLabel(day.time)}</div>
-                      <div className="mt-4 w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-primary">
-                        <span className="material-symbols-outlined">{dayMeta.icon}</span>
-                      </div>
-                      <div className="mt-4 font-headline font-bold text-on-surface">{dayMeta.label}</div>
-                      <div className="mt-3 text-2xl font-headline font-extrabold text-on-surface">
-                        {formatValue(day.tempMax, '°C', 0)}
-                      </div>
-                      <div className="text-sm font-body text-on-surface-variant">
-                        Low {formatValue(day.tempMin, '°C', 0)}
-                      </div>
-                      <div className="mt-3 text-sm font-body text-on-surface-variant leading-6">
-                        Rain {formatValue(day.precipitationProbability, '%')} • {formatValue(day.precipitationSum, ' mm', 1)}
-                      </div>
-                    </article>
-                  )
-                }) : (
-                  <div className="sm:col-span-2 xl:col-span-5 rounded-[1.6rem] border border-outline/10 bg-surface-container-low p-5 text-on-surface-variant font-body">
+                      return (
+                        <article
+                          key={day.time}
+                          className="w-[156px] shrink-0 rounded-[1.6rem] border border-outline/10 bg-surface-container-low p-4"
+                        >
+                          <div className="text-xs uppercase font-label tracking-wide text-on-surface-variant">{formatWeatherDayLabel(day.time)}</div>
+                          <div className="text-sm font-body text-on-surface-variant">{formatWeatherDateLabel(day.time)}</div>
+                          <div className="mt-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-primary">
+                            <span className="material-symbols-outlined">{dayMeta.icon}</span>
+                          </div>
+                          <div className="mt-4 font-headline font-bold text-on-surface">{dayMeta.label}</div>
+                          <div className="mt-3 text-2xl font-headline font-extrabold text-on-surface">
+                            {formatValue(day.tempMax, '°C', 0)}
+                          </div>
+                          <div className="text-sm font-body text-on-surface-variant">
+                            Low {formatValue(day.tempMin, '°C', 0)}
+                          </div>
+                          <div className="mt-3 text-sm font-body text-on-surface-variant leading-6">
+                            Rain {formatValue(day.precipitationProbability, '%')}
+                          </div>
+                          <div className="text-sm font-body text-on-surface-variant leading-6">
+                            {formatValue(day.precipitationSum, ' mm', 1)}
+                          </div>
+                        </article>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-[1.6rem] border border-outline/10 bg-surface-container-low p-5 text-on-surface-variant font-body">
                     Daily forecast data ကို လုပ်ဆောင်နေပါသည်...
                   </div>
                 )}
