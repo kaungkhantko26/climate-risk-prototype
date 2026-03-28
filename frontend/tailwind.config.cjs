@@ -29,9 +29,9 @@ module.exports = {
         'surface-container-high': '#eaead1',
       },
       fontFamily: {
-        headline: ['Nothing English Headline', 'Myanmar Khyay Web', 'Padauk', 'sans-serif'],
-        body: ['Nothing English Text', 'Myanmar Khyay Web', 'Noto Serif', 'Padauk', 'serif'],
-        label: ['Nothing English Text', 'Myanmar Khyay Web', 'Padauk', 'sans-serif'],
+        headline: ['Nothing English Headline', 'Namekoz032 Light Web', 'Padauk', 'sans-serif'],
+        body: ['Nothing English Text', 'Namekoz032 Light Web', 'Padauk', 'Noto Serif', 'serif'],
+        label: ['Nothing English Text', 'Namekoz032 Light Web', 'Padauk', 'sans-serif'],
       },
       borderRadius: {
         DEFAULT: '0.5rem',

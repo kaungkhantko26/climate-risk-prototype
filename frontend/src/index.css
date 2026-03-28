@@ -31,8 +31,8 @@
 }
 
 @font-face {
-  font-family: 'Myanmar Khyay Web';
-  src: url('/fonts/MyanmarKhyay.ttf') format('truetype');
+  font-family: 'Namekoz032 Light Web';
+  src: local('Namekoz032-Light'), local('Namekoz032 Light');
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -43,7 +43,7 @@
 }
 
 body {
-  font-family: 'Nothing English Text', 'Myanmar Khyay Web', 'Noto Serif', 'Padauk', serif;
+  font-family: 'Nothing English Text', 'Namekoz032 Light Web', 'Padauk', 'Noto Serif', serif;
 }
 
 .material-symbols-outlined {
