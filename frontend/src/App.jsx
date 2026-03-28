@@ -3192,7 +3192,16 @@ export default function App() {
         {renderMainView()}
       </main>
 
-      <nav className="xl:hidden fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-4 pb-8 bg-surface/90 backdrop-blur-xl border-t border-outline/10 shadow-[0_-8px_32px_rgba(27,29,14,0.1)] z-50">
+      <nav
+        className="xl:hidden fixed bottom-0 left-0 w-full flex justify-around items-center gap-2 px-4 py-4 pb-8 bg-surface/90 backdrop-blur-xl border-t border-outline/10 shadow-[0_-8px_32px_rgba(27,29,14,0.1)] z-50"
+        style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))',
+        }}
+      >
         {views.map((item) => {
           const active = item.id === activeView
           return (
@@ -3200,8 +3209,8 @@ export default function App() {
               key={item.id}
               className={
                 active
-                  ? 'flex flex-col items-center gap-1 text-primary bg-primary-container/30 px-6 py-2 rounded-2xl transition-all active:scale-90'
-                  : 'flex flex-col items-center gap-1 text-on-surface-variant opacity-60 transition-all active:scale-90'
+                  ? 'flex flex-1 min-w-0 flex-col items-center gap-1 text-primary bg-primary-container/30 px-2 py-2 rounded-2xl transition-all active:scale-90'
+                  : 'flex flex-1 min-w-0 flex-col items-center gap-1 text-on-surface-variant opacity-60 px-2 py-2 rounded-2xl transition-all active:scale-90'
               }
               onClick={() => navigateToView(item.id)}
               type="button"
@@ -3212,7 +3221,7 @@ export default function App() {
               >
                 {item.icon}
               </span>
-              <span className="font-headline text-[11px] font-bold">{item.label}</span>
+              <span className="font-headline text-[11px] font-bold truncate max-w-full">{item.label}</span>
             </button>
           )
         })}
