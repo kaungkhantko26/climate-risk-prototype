@@ -31,8 +31,8 @@
 }
 
 @font-face {
-  font-family: 'Namekoz032 Light Web';
-  src: local('Namekoz032-Light'), local('Namekoz032 Light');
+  font-family: 'Myanmar PaOh Rosemary';
+  src: url('/fonts/MyanmarPaOhRosemary-Regular.woff2') format('woff2');
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -43,7 +43,7 @@
 }
 
 body {
-  font-family: 'Nothing English Text', 'Namekoz032 Light Web', 'Padauk', 'Noto Serif', serif;
+  font-family: 'Nothing English Text', 'Myanmar PaOh Rosemary', 'Padauk', 'Noto Serif', serif;
 }
 
 .material-symbols-outlined {
