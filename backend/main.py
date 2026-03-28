@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 import random
 import re
@@ -17,6 +18,7 @@ from pydantic import BaseModel, Field
 from pywebpush import WebPushException, webpush
 
 app = FastAPI(title='Climate Risk Prediction API', version='0.1.0')
+logger = logging.getLogger('climate-risk-api')
 
 GEOCODING_API_URL = 'https://geocoding-api.open-meteo.com/v1/search'
 FORECAST_API_URL = 'https://api.open-meteo.com/v1/forecast'
@@ -271,24 +273,29 @@ def get_vapid_subject() -> str:
 @lru_cache
 def get_background_push_cron_secret() -> str:
     return os.getenv('BACKGROUND_PUSH_CRON_SECRET', '')
+
+
+@lru_cache
+def get_admin_broadcast_token() -> str:
+    return os.getenv('ADMIN_BROADCAST_TOKEN', '')
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_allowed_origins(),
     allow_credentials=False,
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_methods=['GET', 'POST'],
+    allow_headers=['Content-Type', 'x-admin-token', 'x-cron-secret'],
 )
 
 
 class PredictRequest(BaseModel):
-    location: str
-    crop: str
-    rainfall_mm_next_3_days: float | None = None
-    temperature_c: float | None = None
-    soil_moisture_pct: float | None = None
-    wind_kph: float | None = None
-    latitude: float | None = None
-    longitude: float | None = None
+    location: str = Field(min_length=1, max_length=120)
+    crop: str = Field(min_length=1, max_length=60)
+    rainfall_mm_next_3_days: float | None = Field(default=None, ge=0, le=2000)
+    temperature_c: float | None = Field(default=None, ge=-80, le=80)
+    soil_moisture_pct: float | None = Field(default=None, ge=0, le=100)
+    wind_kph: float | None = Field(default=None, ge=0, le=400)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
 
 
 class WeatherSnapshot(BaseModel):
@@ -343,12 +350,12 @@ class PushChannelPreferences(BaseModel):
 
 
 class PushSubscriptionKeys(BaseModel):
-    p256dh: str
-    auth: str
+    p256dh: str = Field(min_length=1, max_length=512)
+    auth: str = Field(min_length=1, max_length=256)
 
 
 class PushSubscriptionPayload(BaseModel):
-    endpoint: str
+    endpoint: str = Field(min_length=1, max_length=2048)
     expirationTime: int | None = None
     keys: PushSubscriptionKeys
 
@@ -356,7 +363,7 @@ class PushSubscriptionPayload(BaseModel):
 class PushSubscriptionRequest(BaseModel):
     subscription: PushSubscriptionPayload
     channels: PushChannelPreferences = Field(default_factory=PushChannelPreferences)
-    user_agent: str | None = None
+    user_agent: str | None = Field(default=None, max_length=500)
 
 
 class AdminBroadcastMessage(BaseModel):
@@ -386,8 +393,35 @@ class PushJobResponse(BaseModel):
     strongest_temperature_change_c: float | None = None
 
 
+@app.middleware('http')
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'DENY')
+    response.headers.setdefault('Referrer-Policy', 'same-origin')
+    response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)')
+    response.headers.setdefault('Cache-Control', 'no-store')
+    return response
+
+
 def _mean(values: List[float]) -> float:
     return sum(values) / len(values) if values else 0.0
+
+
+def _require_allowed_browser_origin(request: Request) -> None:
+    origin = request.headers.get('origin', '')
+    if not origin or origin not in get_allowed_origins():
+        raise HTTPException(status_code=403, detail='Origin not allowed.')
+
+
+def _require_admin_token(request: Request) -> None:
+    expected_token = get_admin_broadcast_token()
+    if not expected_token:
+        raise HTTPException(status_code=503, detail='Admin broadcast token is not configured.')
+
+    incoming_token = request.headers.get('x-admin-token', '')
+    if incoming_token != expected_token:
+        raise HTTPException(status_code=401, detail='Invalid admin token.')
 
 
 def _format_location_name(match: dict) -> str:
@@ -575,7 +609,8 @@ async def fetch_json(url: str, params: dict) -> dict:
     except TimeoutError as exc:
         raise HTTPException(status_code=504, detail='Weather provider timed out.') from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f'Weather provider request failed: {exc}') from exc
+        logger.exception('Weather provider request failed.')
+        raise HTTPException(status_code=502, detail='Weather provider request failed.') from exc
 
 
 def _supabase_request_blocking(
@@ -624,13 +659,14 @@ async def supabase_request(
     except HTTPException:
         raise
     except HTTPError as exc:
-        detail = exc.read().decode('utf-8') if hasattr(exc, 'read') else ''
-        raise HTTPException(status_code=502, detail=f'Supabase returned HTTP {exc.code}. {detail}') from exc
+        logger.warning('Supabase returned HTTP %s.', exc.code)
+        raise HTTPException(status_code=502, detail=f'Supabase returned HTTP {exc.code}.') from exc
     except URLError as exc:
         reason = getattr(exc, 'reason', exc)
         raise HTTPException(status_code=502, detail=f'Supabase connection failed: {reason}') from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f'Supabase request failed: {exc}') from exc
+        logger.exception('Supabase request failed.')
+        raise HTTPException(status_code=502, detail='Supabase request failed.') from exc
 
 
 async def upsert_push_subscription(record: dict) -> None:
@@ -1075,9 +1111,10 @@ def push_config():
 
 
 @app.post('/push/subscribe')
-async def push_subscribe(request: PushSubscriptionRequest):
+async def push_subscribe(http_request: Request, request: PushSubscriptionRequest):
     if not get_vapid_public_key() or not get_vapid_private_key():
         raise HTTPException(status_code=503, detail='Web push is not configured.')
+    _require_allowed_browser_origin(http_request)
 
     await upsert_push_subscription(
         {
@@ -1105,7 +1142,9 @@ def admin_broadcast_current():
 
 
 @app.post('/admin-broadcast', response_model=AdminBroadcastMessage)
-async def admin_broadcast(request: AdminBroadcastRequest):
+async def admin_broadcast(http_request: Request, request: AdminBroadcastRequest):
+    _require_allowed_browser_origin(http_request)
+    _require_admin_token(http_request)
     delivered_count = 0
     failed_count = 0
 
@@ -1150,13 +1189,14 @@ async def cron_background_notifications(request: Request):
     except HTTPException as exc:
         return PushJobResponse(
             status='error',
-            detail=str(exc.detail),
+            detail='Background notification job failed.',
             failures=1,
         )
     except Exception as exc:
+        logger.exception('Background notification job failed.')
         return PushJobResponse(
             status='error',
-            detail=str(exc),
+            detail='Background notification job failed.',
             failures=1,
         )
 

@@ -651,7 +651,7 @@ export default function App() {
   const [lastFeedRefresh, setLastFeedRefresh] = useState(null)
   const [lastHomeAlertRefresh, setLastHomeAlertRefresh] = useState(null)
   const [currentBroadcast, setCurrentBroadcast] = useState(null)
-  const [adminBroadcastForm, setAdminBroadcastForm] = useState({ title: '', body: '' })
+  const [adminBroadcastForm, setAdminBroadcastForm] = useState({ token: '', title: '', body: '' })
   const [adminBroadcastStatus, setAdminBroadcastStatus] = useState('')
   const [adminBroadcastError, setAdminBroadcastError] = useState('')
   const [isSendingAdminBroadcast, setIsSendingAdminBroadcast] = useState(false)
@@ -1613,11 +1613,12 @@ export default function App() {
   const sendAdminBroadcast = async (event) => {
     event.preventDefault()
 
+    const token = adminBroadcastForm.token.trim()
     const title = adminBroadcastForm.title.trim()
     const body = adminBroadcastForm.body.trim()
 
-    if (!title || !body) {
-      setAdminBroadcastError('Header and message body are required.')
+    if (!token || !title || !body) {
+      setAdminBroadcastError('Admin token, header, and message body are required.')
       return
     }
 
@@ -1633,7 +1634,10 @@ export default function App() {
     try {
       const response = await fetch(`${API_BASE}/admin-broadcast`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': token,
+        },
         body: JSON.stringify({
           title,
           body,
@@ -2801,6 +2805,17 @@ export default function App() {
 
           <form className="space-y-5" onSubmit={sendAdminBroadcast}>
             <label className="block">
+              <span className="text-sm font-label font-bold text-on-surface-variant">Admin Token</span>
+              <input
+                value={adminBroadcastForm.token}
+                onChange={(event) => updateAdminBroadcastField('token', event.target.value)}
+                className="mt-2 w-full rounded-2xl border-outline/10 bg-surface-container-low px-4 py-3.5 text-on-surface focus:border-primary focus:ring-primary"
+                placeholder="Enter x-admin-token"
+                type="password"
+              />
+            </label>
+
+            <label className="block">
               <span className="text-sm font-label font-bold text-on-surface-variant">Notification Header</span>
               <input
                 value={adminBroadcastForm.title}
@@ -2871,7 +2886,7 @@ export default function App() {
             <div className="mt-3 space-y-3 text-sm text-on-surface-variant font-body">
               <p>Users who granted notification permission will receive the admin message as a system notification.</p>
               <p>This works for active/open web app sessions with the current architecture.</p>
-              <p>This hidden page now sends directly without asking for an admin key.</p>
+              <p>This hidden page now requires a valid admin token in the `x-admin-token` header.</p>
             </div>
           </div>
         </div>

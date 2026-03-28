@@ -3,6 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 https:; frame-src https://www.openstreetmap.org; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self';"
+    />
+    <meta name="referrer" content="same-origin" />
     <meta name="theme-color" content="#2D6A4F" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Climate Monitor" />
