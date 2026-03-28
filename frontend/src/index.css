@@ -30,8 +30,20 @@
     U+20A0-20CF;
 }
 
+@font-face {
+  font-family: 'Myanmar Khyay Web';
+  src: url('/fonts/MyanmarKhyay.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range:
+    U+1000-109F,
+    U+AA60-AA7F,
+    U+A9E0-A9FF;
+}
+
 body {
-  font-family: 'Nothing English Text', 'Noto Serif', 'Padauk', serif;
+  font-family: 'Nothing English Text', 'Myanmar Khyay Web', 'Noto Serif', 'Padauk', serif;
 }
 
 .material-symbols-outlined {
