@@ -332,22 +332,6 @@ const badgeClass = (risk) => {
   return 'bg-blue-100 text-blue-700 border-blue-200'
 }
 
-const featuredAlertCardClass = (risk) => {
-  const riskKind = getRiskKind(risk)
-  if (riskKind === 'flood') return 'border-2 border-red-200 shadow-[0_12px_48px_rgba(186,26,26,0.12)]'
-  if (riskKind === 'drought') return 'border-2 border-orange-200 shadow-[0_12px_48px_rgba(234,88,12,0.12)]'
-  if (riskKind === 'storm') return 'border-2 border-amber-200 shadow-[0_12px_48px_rgba(217,119,6,0.12)]'
-  return 'border-2 border-blue-200 shadow-[0_12px_48px_rgba(59,130,246,0.12)]'
-}
-
-const featuredAlertLocationClass = (risk) => {
-  const riskKind = getRiskKind(risk)
-  if (riskKind === 'flood') return 'text-red-700'
-  if (riskKind === 'drought') return 'text-orange-700'
-  if (riskKind === 'storm') return 'text-amber-700'
-  return 'text-blue-700'
-}
-
 const formatValue = (value, unit, digits = 0) => {
   if (value === null || value === undefined || Number.isNaN(value)) return 'Unavailable'
   return `${Number(value).toFixed(digits)}${unit}`
@@ -1274,13 +1258,6 @@ export default function App() {
   const guideCards = useMemo(() => getGuideCards(currentAlert), [currentAlert])
   const mapLinks = useMemo(() => getMapLinks(currentAlert), [currentAlert])
 
-  const recentAlerts = useMemo(() => {
-    const currentKey = currentAlert ? `${currentAlert.location}-${currentAlert.crop}-${currentAlert.risk}` : null
-    return alerts
-      .filter((alert) => `${alert.location}-${alert.crop}-${alert.risk}` !== currentKey)
-      .slice(0, 4)
-  }, [alerts, currentAlert])
-
   const temperatureNotifications = useMemo(
     () => [...notifications].sort(
       (left, right) => (right.weather?.current_temperature_c || 0) - (left.weather?.current_temperature_c || 0),
@@ -1724,14 +1701,6 @@ export default function App() {
     }, TAB_TRANSITION_TOTAL_MS)
 
     tabTransitionTimeoutsRef.current = [switchTimeoutId, clearTimeoutId]
-  }
-
-  const focusAlert = (alert, nextView = activeView) => {
-    latestPredictionPayloadRef.current = null
-    setSelectedAlert(alert)
-    setGeneratedAlert(null)
-    setForm((prev) => ({ ...prev, crop: alert.crop }))
-    navigateToView(nextView)
   }
 
   const requestPrediction = async (payload, nextView) => {
@@ -2461,62 +2430,6 @@ export default function App() {
         </div>
       </section>
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-headline font-bold text-lg text-on-surface flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">bolt</span>
-            လက်ရှိ သတိထားရန်
-          </h3>
-          <button
-            className="text-primary font-headline font-bold text-sm hover:underline"
-            onClick={() => navigateToView('alerts')}
-            type="button"
-          >
-            အားလုံးကြည့်ရန်
-          </button>
-        </div>
-
-        <article className={`bg-white rounded-3xl p-6 md:p-8 flex flex-col md:flex-row gap-6 md:items-center relative overflow-hidden ${featuredAlertCardClass(currentAlert?.risk || '')}`}>
-          <div className={`absolute left-0 top-0 bottom-0 w-3 ${currentMeta.accentClass}`}></div>
-          <div className={`w-24 h-24 rounded-2xl flex items-center justify-center shrink-0 shadow-inner ${currentMeta.iconPanelClass}`}>
-            <span className="material-symbols-outlined text-6xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-              {currentMeta.icon}
-            </span>
-          </div>
-
-          <div className="flex-1 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className={`px-4 py-1.5 rounded-full text-xs font-bold font-label uppercase tracking-wider ${currentMeta.badgeClassName}`}>
-                  {currentMeta.badge}
-                </span>
-                <div className={`flex items-center gap-1.5 font-bold font-headline ${featuredAlertLocationClass(currentAlert?.risk || '')}`}>
-                  <span className="material-symbols-outlined text-lg">location_on</span>
-                  <span>{currentAlert?.location || 'Myanmar'}</span>
-                </div>
-              </div>
-              <time className="text-sm text-on-surface-variant font-label font-medium opacity-60">
-                {featuredAlertUpdatedLabel}
-              </time>
-            </div>
-
-            <h3 className="font-headline text-2xl md:text-3xl font-bold text-on-surface leading-tight">
-              {currentAlert?.risk || 'Live alert not available yet'}
-            </h3>
-            <p className="text-on-surface-variant font-body leading-relaxed max-w-2xl text-lg">
-              {currentAlert?.advice || 'Live Myanmar weather feed ကို စောင့်ဆိုင်းနေပါသည်။'}
-            </p>
-            <div className="pt-2 flex flex-wrap gap-3">
-              <span className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium ${badgeClass(currentAlert?.risk || '')}`}>
-                {currentAlert?.crop || 'Rice'}
-              </span>
-              <span className="inline-flex items-center rounded-full border border-outline/10 bg-surface-container-low px-4 py-2 text-sm font-headline font-bold text-on-surface-variant">
-                {formatValue(currentAlert?.weather?.rainfall_mm_next_3_days, ' mm', 1)} rain
-              </span>
-            </div>
-          </div>
-        </article>
-      </section>
     </div>
   )
 
@@ -2811,33 +2724,6 @@ export default function App() {
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl p-6 border border-outline/10 space-y-4">
-            <h4 className="font-headline text-xl font-bold">မြေပုံပေါ်တွင် ကြည့်ရန်</h4>
-            {alerts.length > 0 ? (
-              alerts.map((alert) => (
-                <button
-                  key={`${alert.location}-${alert.crop}-${alert.risk}`}
-                  className="w-full text-left rounded-2xl bg-surface-container-low p-4 hover:bg-surface-container transition-all"
-                  onClick={() => focusAlert(alert, 'map')}
-                  type="button"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-headline font-bold">{alert.location}</div>
-                      <div className="text-xs text-on-surface-variant font-label mt-1">
-                        {formatValue(alert.weather?.current_temperature_c, '°C', 1)} • {formatValue(alert.weather?.rainfall_mm_next_3_days, ' mm', 1)} rain
-                      </div>
-                    </div>
-                    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium ${badgeClass(alert.risk)}`}>
-                      {alert.crop}
-                    </span>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className="text-on-surface-variant">Live map locations မရရှိသေးပါ။</div>
-            )}
-          </div>
         </div>
       </section>
     </div>
