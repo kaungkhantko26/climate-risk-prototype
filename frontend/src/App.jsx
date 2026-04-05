@@ -1768,6 +1768,11 @@ export default function App() {
       return
     }
 
+    if (selectedLocationOption?.latitude != null && selectedLocationOption?.longitude != null) {
+      payload.latitude = selectedLocationOption.latitude
+      payload.longitude = selectedLocationOption.longitude
+    }
+
     await requestPrediction(payload, nextView)
   }
 
